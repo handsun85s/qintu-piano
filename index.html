@@ -1669,7 +1669,7 @@ function micBlocked(err){
   modal(`<h3>没法直接用麦克风</h3>
    <p class="muted">${denied?'浏览器拒绝了麦克风权限。':'当前打开方式不支持麦克风。'}在 Claude 里打开这个页面时，出于安全限制，网页暂时不能使用麦克风。</p>
    <p style="margin-top:12px"><b>现在就能用的办法：录音评测</b><br><span class="muted">用手机自带的录音 App（或录视频）录下你弹这首曲子，然后点下面的按钮上传，我会逐个音告诉你哪里弹错、哪里漏了。</span></p>
-   <p style="margin-top:12px" class="muted">想要边弹边实时听：把这个网页放到一个普通网址上打开就可以（需要另外部署一次）。</p>
+   <p style="margin-top:12px"><b>想要边弹边实时听</b><br><span class="muted">用手机或 Pad 的浏览器打开 <a href="https://handsun85s.github.io/qintu-piano/" target="_blank" rel="noopener">handsun85s.github.io/qintu-piano</a>，那里可以用麦克风。进度用“我的 → 进度码”搬过去。</span></p>
    <div class="mrow" style="margin-top:16px"><button class="btn" data-x>知道了</button><label class="btn pri" for="plrec">${ICON.mic}上传录音评测</label></div>`,m=>{ $('[data-x]',m).onclick=closeModal; $('label',m).addEventListener('click',()=>setTimeout(closeModal,50)); });
 }
 function plRefreshStatus(){ if(PL.mode==='wait'&&PL.wm) wmShow(); else if(!PL.playing) plIdle(); }
