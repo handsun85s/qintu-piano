@@ -1,0 +1,16 @@
+{
+  "name": "琴途钢琴闯关",
+  "short_name": "琴途",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0D0F13",
+  "theme_color": "#16181D",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
