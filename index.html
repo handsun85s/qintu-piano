@@ -2241,9 +2241,21 @@ function drEar(lv){
 }
 
 /* ================= 启动 ================= */
+// 私人导入链接：网址 #qt= 后面带着曲子数据，打开一次就存进本机的“我的曲库”。
+// 曲子只在这个链接里，不在公开的网页文件里。
+function importFromHash(){
+  try{ const b=location.hash.slice(4).replace(/-/g,'+').replace(/_/g,'/');
+    const inc=sanitize(JSON.parse(decodeURIComponent(escape(atob(b)))));
+    const before=customIds().length; PG=merge(PG,inc); save(); syncCustom();
+    const n=customIds().length-before;
+    toast(n>0?`已导入 ${n} 首曲子到“我的曲库”`:'这些曲子已经在“我的曲库”里了，已更新到最新');
+  }catch(err){ console.warn(err); toast('导入链接不完整，请重新复制整条链接'); }
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(_){}
+}
 (function boot(){
   const h=(location.hash||'').slice(1); if(['map','learn','drills','me'].includes(h)) TAB=h;
   syncCustom();
+  if(STANDALONE&&location.hash.startsWith('#qt=')) importFromHash();
   renderMain();
   initCloud();
   window.addEventListener('blur',()=>{ if(INPUT.kb) INPUT.kb.voices.forEach((v,m)=>kbUp(INPUT.kb,m)); });
