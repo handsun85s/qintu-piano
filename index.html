@@ -1381,7 +1381,7 @@ const customIds=()=>Object.keys(PG.custom||{}).filter(id=>PG.custom[id]&&!PG.cus
 function syncCustom(){
   Object.keys(SONG).forEach(id=>{ if(SONG[id].custom&&!(PG.custom[id]&&!PG.custom[id].deleted)) delete SONG[id]; });
   customIds().forEach(id=>{ const c=PG.custom[id]; if(SONG[id]&&SONG[id].at===c.at) return;
-    SONG[id]={id,custom:true,at:c.at,title:c.title,sub:'我的曲子',key:'1='+keyName(c.key),doPc:KEYS[c.key].pc,keySig:KEYS[c.key].ks,time:c.time,pickup:c.pickup||0,bpm:c.bpm,lv:0,
+    SONG[id]={id,custom:true,at:c.at,title:c.title,sub:c.sub||'我的曲子',key:c.keyLabel||('1='+keyName(c.key)),doPc:KEYS[c.key].pc,keySig:KEYS[c.key].ks,time:c.time,pickup:c.pickup||0,bpm:c.bpm,lv:0,
       tip:'这首是你自己录入的。指法是自动配的，觉得别扭就按顺手的来，但每次都用同一种。',rh:c.rh,lh:c.lh||null}; });
 }
 // 用调里的音级给音命名（F 调的 4 是 B♭ 不是 A♯）
@@ -1451,6 +1451,7 @@ function autoLH(rhSeq,key,time,pickup,mode){
 }
 function openEditor(id){
   const c=id?PG.custom[id]:null, src=c?c.src:{};
+  if(c&&!src){ modal(`<h3>这首不能在这里编辑</h3><p class="muted">《${esc(c.title)}》是按你给的 PDF 乐谱直接录入的，不是用简谱输入的。想改哪里，告诉 Claude 曲名和第几小节就行。</p><div class="mrow" style="margin-top:14px"><button class="btn pri" data-x>好的</button></div>`,m=>$('[data-x]',m).onclick=closeModal); return; }
   const v=(k,d)=>src&&src[k]!=null?src[k]:d;
   openStage(`${stageHead(c?'编辑：'+esc(c.title):'添加曲子','用简谱录入，自动配指法')}<div class="st-body"><div class="st-inner">
     <div class="form">
