@@ -1655,8 +1655,9 @@ function openEditor(id){
     try{ const tmp={id:'_prev',title:'',time:cur.time,pickup:cur.pickup,keySig:KEYS[cur.key].ks,doPc:KEYS[cur.key].pc,rh:R.seq,lh:cur.lh,bpm:cur.bpm}; cur.P=prepSong(tmp);
       renderScore($('#ed-prev'),cur.P,{width:Math.min(($('#ed-prev').clientWidth||600),900),s:8,labels:PG.settings.label||'name',fingers:true,interactive:false}); }
     catch(err){ $('#ed-prev').innerHTML=`<p class="jp-err">${esc(err.message)}</p>`; } };
-  let tm=null; $('#stage').addEventListener('input',()=>{ clearTimeout(tm); tm=setTimeout(update,250); });
-  $('#stage').addEventListener('change',update);
+  const body=$('#stage .st-body'); let tm=null;
+  body.addEventListener('input',()=>{ clearTimeout(tm); tm=setTimeout(update,250); });
+  body.addEventListener('change',update);
   update();
   $('#ed-play').onclick=()=>{ if(!cur||!cur.P) return; stopSeq(); const ctx=audio(), spb=60/cur.bpm, t0=ctx.currentTime+.1;
     cur.P.evs.forEach(e=>{ if(!e.rest) e.notes.forEach(n=>tone(n.midi,t0+e.t*spb,e.d*spb*.95,e.hand==='L'?.85:.72)); }); };
@@ -2262,7 +2263,7 @@ function openLesson(id){
       renderScore(h,P,{width:200,s:11,interactive:false,noFinal:true,tight:true}); });
   };
   drawStaffs();
-  st.addEventListener('click',e=>{
+  $('.st-body',st).addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
     if(b.dataset.play!=null){ const p=L.blocks[+b.dataset.play].play; playSeq(p.seq,p.bpm); }
     if(b.dataset.playstaff!=null){ const s=L.blocks[+b.dataset.playstaff].staff; playSeq(s.seq.replace(/\|/g,''),s.play,{metro:s.metro?(s.time?s.time[0]:4):0,countIn:s.metro?4:0}); }
