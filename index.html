@@ -326,6 +326,7 @@ body.staged{overflow:hidden}
 .score .ev .hd.ho{fill:var(--surface);stroke:currentColor;stroke-width:1.6}
 .score .ev .stem{stroke:currentColor;stroke-width:1.2}
 .score .ev .flag{stroke:currentColor;stroke-width:1.5;fill:none}
+.score .beam{fill:var(--ink)}
 .score .ev .dot,.score .ev .labdot{fill:currentColor}
 .score .ev .acc{fill:currentColor}
 .score .ev .rst{fill:currentColor;stroke:currentColor}
@@ -353,7 +354,10 @@ body.staged{overflow:hidden}
 .tipbox{border-left:3px solid var(--gold);background:var(--gold-soft);padding:10px 14px;border-radius:0 10px 10px 0;font-size:15px}
 .kbbox{background:#1B1D22;border-radius:12px;padding:8px 6px 6px;overflow-x:auto}
 .kbbox .cap{color:#C9CCD2;font-size:13px;padding:2px 6px 8px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.staffbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;align-items:center}
+.staffbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;align-items:center;overflow:hidden}
+.staffbox .score{max-width:100%}
+.playrow{display:flex;align-items:center;gap:12px}
+.beatcnt{min-width:64px;font-size:18px;font-weight:700;color:var(--accent)}
 .quiz{display:flex;flex-direction:column;gap:14px;margin-top:10px}
 .q{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
 .q .qt{font-weight:600;margin-bottom:10px}
@@ -886,9 +890,12 @@ function renderScore(host,P,o){
     sy.ms.forEach((mi,k)=>{
       const MI=mInfo[mi], mw=MI.w*fac;
       if(k===0&&o.barNums!==false&&!P.free){const no=P.pickup?mi:mi+1; if(no>1) out.push(`<text class="mn" x="${f1(x0+2)}" y="${f1(yA-s*.9)}" font-size="${f1(s*1.15)}">${no}</text>`);}
+      const xs={}; P.evs.forEach(e=>{ if(e.m===mi) xs[e.i]=mx+MI.pos.get(tkey(e.t))*fac; });
+      const beams=beamGroups(P,mi,rows,xs,s);
       P.evs.forEach(e=>{ if(e.m!==mi) return; const row=rows.find(r=>r.st.hand===e.hand); if(!row) return;
-        const x=mx+MI.pos.get(tkey(e.t))*fac; evPos[e.i]={x,sys:si};
+        const x=xs[e.i]; evPos[e.i]={x,sys:si};
         out.push(drawEvent(e,x,row,s,o,P)); });
+      beams.forEach(b=>out.push(drawBeams(b,xs,s)));
       const bx=mx+mw;
       if(mi===P.measures.length-1&&!o.noFinal){out.push(`<line class="bl" x1="${f1(bx-s*.75)}" x2="${f1(bx-s*.75)}" y1="${f1(yA)}" y2="${f1(yB)}"/><rect class="bk" x="${f1(bx-s*.42)}" y="${f1(yA)}" width="${f1(s*.42)}" height="${f1(yB-yA)}"/>`);}
       else out.push(`<line class="bl" x1="${f1(bx)}" x2="${f1(bx)}" y1="${f1(yA)}" y2="${f1(yB)}"/>`);
@@ -899,6 +906,47 @@ function renderScore(host,P,o){
   const H=f1(Y-s*(o.sysGap||1.6)+s*.6);
   host.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${esc(o.aria||'乐谱')}"><rect class="ph" x="-50" y="0" width="${f1(s*2.8)}" height="0" rx="5"/>${out.join('')}</svg>`;
   return {evPos,sysBox,s,svg:host.firstElementChild};
+}
+// 符杠：同一拍里连续的八分 / 十六分音符用横杠连起来（x/8 拍子按附点四分一组）
+function beamGroups(P,mi,rows,xs,s){
+  const m=P.measures[mi], unit=P.time&&P.time[1]===8?1.5:1, groups=[];
+  if(P.free) return groups;
+  rows.forEach(row=>{
+    let cur=[];
+    const flush=()=>{ if(cur.length>=2) groups.push({row,evs:cur}); else cur.forEach(e=>delete e._beam); cur=[]; };
+    P.evs.forEach(e=>{ if(e.m!==mi||e.hand!==row.st.hand) return;
+      delete e._beam;
+      if(e.rest||flagsOf(e.d)===0){ flush(); return; }
+      const grp=Math.floor((e.t-m.t)/unit+1e-6), prev=cur[cur.length-1];
+      if(prev&&(Math.abs(prev.t+prev.d-e.t)>1e-6||Math.floor((prev.t-m.t)/unit+1e-6)!==grp)) flush();
+      cur.push(e); });
+    flush();
+  });
+  groups.forEach(G=>{
+    const C=G.row.st.C, yOf=di=>G.row.bot-(di-C.bot)*s/2, hw=s*.62;
+    const all=G.evs.flatMap(e=>e.notes.map(n=>n.di)), up=all.reduce((a,b)=>a+b,0)/all.length<C.mid;
+    const pts=G.evs.map(e=>{ const ds=e.notes.map(n=>n.di); const tip=up?yOf(Math.max(...ds))-s*3.2:yOf(Math.min(...ds))+s*3.2; return {e,x:xs[e.i]+(up?hw*.93:-hw*.93),tip}; });
+    const a=pts[0], z=pts[pts.length-1], span=Math.max(1,z.x-a.x);
+    const dy=Math.max(-s,Math.min(s,z.tip-a.tip));   // 斜度不超过一格
+    let off=0; pts.forEach(p=>{ const y=a.tip+dy*(p.x-a.x)/span; off=up?Math.max(off,y-p.tip):Math.min(off,y-p.tip); });
+    const lineY=x=>a.tip+dy*(x-a.x)/span-off;
+    G.up=up; G.pts=pts; G.lineY=lineY;
+    pts.forEach(p=>{ p.e._beam={up,y:lineY(p.x)}; });
+  });
+  return groups;
+}
+function drawBeams(G,xs,s){
+  const th=s*.48, dir=G.up?1:-1, out=[];
+  const bar=(x1,x2,level)=>{ const o=level*s*.8*dir, y1=G.lineY(x1)+o, y2=G.lineY(x2)+o;
+    out.push(`<path class="beam" d="M${f1(x1)} ${f1(y1)}L${f1(x2)} ${f1(y2)}L${f1(x2)} ${f1(y2+th*dir)}L${f1(x1)} ${f1(y1+th*dir)}Z"/>`); };
+  const P=G.pts; bar(P[0].x,P[P.length-1].x,0);
+  // 十六分音符的第二道杠：相邻两个都是十六分就连起来，单独一个就画一小截
+  for(let i=0;i<P.length;i++){ if(flagsOf(P[i].e.d)<2) continue;
+    const nx=P[i+1]&&flagsOf(P[i+1].e.d)>=2;
+    if(nx){ bar(P[i].x,P[i+1].x,1); continue; }
+    const pv=P[i-1]&&flagsOf(P[i-1].e.d)>=2; if(pv) continue;
+    const stub=s*1.1; if(i>0) bar(P[i].x-stub,P[i].x,1); else bar(P[i].x,P[i].x+stub,1); }
+  return out.join('');
 }
 function drawEvent(e,x,row,s,o,P){
   const C=row.st.C, g=[], hw=s*.62;
@@ -916,7 +964,11 @@ function drawEvent(e,x,row,s,o,P){
     if(n.show) g.push(accGlyph(n.show,x-hw-s*.85,y,s,'acc'));
     if(isDotted(e.d)){const onLine=(n.di-C.bot)%2===0; g.push(`<circle class="dot" cx="${f1(x+hw+s*.55)}" cy="${f1(y-(onLine?s*.5:0))}" r="${f1(s*.18)}"/>`);}
   });
-  if(e.d<4-1e-6){
+  if(e._beam){   // 用符杠连起来的音：符干一直连到符杠，不画小尾巴
+    const B=e._beam, sx=B.up?x+hw*.93:x-hw*.93, y1=B.up?yOf(lo):yOf(hi);
+    g.push(`<line class="stem" x1="${f1(sx)}" x2="${f1(sx)}" y1="${f1(y1)}" y2="${f1(B.y)}"/>`);
+  }
+  else if(e.d<4-1e-6){
     const yl=yOf(lo), yh=yOf(hi); const sx=up?x+hw*.93:x-hw*.93; const y1=up?yl:yh; const y2=up?yh-s*3.4:yl+s*3.4;
     g.push(`<line class="stem" x1="${f1(sx)}" x2="${f1(sx)}" y1="${f1(y1)}" y2="${f1(y2)}"/>`);
     const nf=flagsOf(e.d);
@@ -974,7 +1026,8 @@ function audio(){
   return AU.ctx;
 }
 const outLat=()=>AU.ctx?(AU.ctx.outputLatency||AU.ctx.baseLatency||0):0;
-function makeVoice(midi,t0,vel=.7){
+// sus=true：音一直保持到松开（节奏课里用，长音才听得出有多长）；默认像钢琴一样慢慢变弱
+function makeVoice(midi,t0,vel=.7,sus=false){
   const ctx=audio(); t0=Math.max(t0,ctx.currentTime+.004);
   const f=440*Math.pow(2,(midi-69)/12);
   const out=ctx.createGain(); out.gain.value=0;
@@ -988,33 +1041,44 @@ function makeVoice(midi,t0,vel=.7){
   const oscs=parts.filter(p=>p[2]>0).map(([type,mul,gv])=>{const o=ctx.createOscillator(); o.type=type; o.frequency.value=f*mul; const gg=ctx.createGain(); gg.gain.value=gv; o.connect(gg); gg.connect(lp); o.start(t0); return o;});
   const peak=.24*vel*(1+1.1*low)*(midi>84?.8:1);
   const G=out.gain; G.setValueAtTime(0,t0); G.linearRampToValueAtTime(peak,t0+.005);
-  G.setTargetAtTime(peak*(.38+.25*low),t0+.005,.1);   // 低音落得慢一点，长音也听得见
-  G.setTargetAtTime(0,t0+.25,.6+2.2*Math.max(0,96-midi)/75);
-  let stopped=false;
-  return {stopAt(t){ if(stopped) return; stopped=true; t=Math.max(t,t0+.04); G.setTargetAtTime(0,t,.07); oscs.forEach(o=>{try{o.stop(t+.6);}catch(_){} }); }};
+  G.setTargetAtTime(peak*(sus?.6:.38+.25*low),t0+.005,.1);   // 低音落得慢一点，长音也听得见
+  if(!sus) G.setTargetAtTime(0,t0+.25,.6+2.2*Math.max(0,96-midi)/75);
+  let stopAt=Infinity;
+  return {stopAt(t){
+    t=Math.max(t,ctx.currentTime);
+    if(stopAt===Infinity){ t=Math.max(t,t0+.04); stopAt=t; G.setTargetAtTime(0,t,.07); oscs.forEach(o=>{try{o.stop(t+.6);}catch(_){} }); return; }
+    // 已经约好结束时间、但要提前停（比如点了“停止”）：直接把音量收掉
+    if(t<stopAt){ stopAt=t; try{ G.cancelScheduledValues(t); }catch(_){} G.setTargetAtTime(0,t,.02); }
+  }};
 }
 function tone(m,when,dur,vel){ makeVoice(m,when,vel).stopAt(when+dur); }
 function playChord(ms,dur=1.2,vel=.6){ const ctx=audio(); const t=ctx.currentTime+.03; ms.forEach(m=>tone(m,t,dur,vel)); }
-function click(when,strong){
+function click(when,strong,vol=1){
   const ctx=audio(); const o=ctx.createOscillator(), g=ctx.createGain();
   o.type='sine'; o.frequency.value=strong?1900:1250; o.connect(g); g.connect(AU.master);
-  g.gain.setValueAtTime(0,when); g.gain.linearRampToValueAtTime(strong?.32:.2,when+.002); g.gain.exponentialRampToValueAtTime(.001,when+.05);
+  g.gain.setValueAtTime(0,when); g.gain.linearRampToValueAtTime((strong?.32:.2)*vol,when+.002); g.gain.exponentialRampToValueAtTime(.001,when+.05);
   o.start(when); o.stop(when+.07);
+  return o;
 }
-// 播放一段音符序列（课程、示范用）
-let SEQ_STOP=null;
+// 播放一段音符序列（课程、示范用）。再点一次或离开页面时，正在响的音和节拍器都会立刻停，不会叠在一起。
+const SEQ={timer:null,raf:0,voices:[],clicks:[],onStop:null};
 function playSeq(seq,bpm=90,opt={}){
   stopSeq();
   const X=parseSeq(seq,'R'); const ctx=audio(); const spb=60/bpm; const t0=ctx.currentTime+.08+(opt.countIn?opt.countIn*spb:0);
-  if(opt.countIn) for(let k=0;k<opt.countIn;k++) click(t0-(opt.countIn-k)*spb,k===0);
-  const voices=[];
-  X.evs.forEach(e=>{ if(e.rest) return; e.notes.forEach(n=>{const v=makeVoice(n.midi,t0+e.t*spb,.7); v.stopAt(t0+(e.t+e.d)*spb*.98); voices.push(v);}); });
-  if(opt.metro) for(let b=0;b<X.end-1e-6;b+=1) click(t0+b*spb,b%(opt.metro)===0);
-  const timer=setTimeout(()=>{SEQ_STOP=null; opt.onEnd&&opt.onEnd();},(t0-ctx.currentTime+X.end*spb)*1000+120);
-  SEQ_STOP=()=>{clearTimeout(timer);};
+  if(opt.countIn) for(let k=0;k<opt.countIn;k++) SEQ.clicks.push(click(t0-(opt.countIn-k)*spb,k===0));
+  X.evs.forEach(e=>{ if(e.rest) return; e.notes.forEach(n=>{ const v=makeVoice(n.midi,t0+e.t*spb,.7,!!opt.sustain);
+    v.stopAt(t0+(e.t+e.d*.94)*spb); SEQ.voices.push(v); }); });   // 每个音按自己的时值结束，只在末尾留一点点空隙
+  if(opt.metro) for(let b=0;b<X.end-1e-6;b+=1) SEQ.clicks.push(click(t0+b*spb,b%(opt.metro)===0,.6));
+  SEQ.timer=setTimeout(()=>{ const f=SEQ.onStop; SEQ.voices=[]; SEQ.clicks=[]; SEQ.onStop=null; cancelAnimationFrame(SEQ.raf); clearInterval(SEQ.iv); f&&f(); opt.onEnd&&opt.onEnd(); },(t0-ctx.currentTime+X.end*spb)*1000+150);
+  SEQ.onStop=opt.onStop||null;
   return {t0,spb,X};
 }
-function stopSeq(){ if(SEQ_STOP){SEQ_STOP();SEQ_STOP=null;} }
+function stopSeq(){
+  clearTimeout(SEQ.timer); cancelAnimationFrame(SEQ.raf); clearInterval(SEQ.iv);
+  const now=AU.ctx?AU.ctx.currentTime:0;
+  SEQ.voices.forEach(v=>v.stopAt(now)); SEQ.clicks.forEach(o=>{try{o.stop(now);}catch(_){}});
+  SEQ.voices=[]; SEQ.clicks=[]; const f=SEQ.onStop; SEQ.onStop=null; f&&f();
+}
 
 /* ================= 听琴：从麦克风或录音里识别钢琴音 =================
    每 30ms 取一帧频谱，对每个琴键把它的前 6 个泛音能量加起来（谐波求和），
@@ -2232,7 +2296,7 @@ function openLesson(id){
     if(b.p) body+=`<p class="lesson-p blk">${b.p}</p>`;
     else if(b.tip) body+=`<div class="tipbox blk">${b.tip}</div>`;
     else if(b.kbd) body+=`<div class="blk kbbox" data-kbd="${i}"><div class="cap"><span>${b.kbd.task?b.kbd.task.text:'点一点，听听声音'}</span><span class="taskprog"></span></div></div>`;
-    else if(b.staff) body+=`<div class="blk staffbox"><div class="score" data-staff="${i}" style="width:100%"></div>${b.staff.play?`<button class="btn sm" data-playstaff="${i}">${ICON.speaker}听一听</button>`:''}</div>`;
+    else if(b.staff) body+=`<div class="blk staffbox"><div class="score" data-staff="${i}" style="width:100%"></div>${b.staff.play?`<div class="playrow"><button class="btn sm" data-playstaff="${i}">${ICON.speaker}听一听</button><span class="beatcnt num" data-cnt="${i}"></span></div>`:''}</div>`;
     else if(b.play) body+=`<div class="blk"><button class="btn" data-play="${i}">${ICON.speaker}${b.play.label}</button></div>`;
     else if(b.metro) body+=`<div class="blk"><button class="btn" data-metro="${i}">${ICON.speaker}${b.metro.label}</button></div>`;
     else if(b.hands) body+=`<div class="blk hands">${handsSVG()}</div>`;
@@ -2266,7 +2330,7 @@ function openLesson(id){
   $('.st-body',st).addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
     if(b.dataset.play!=null){ const p=L.blocks[+b.dataset.play].play; playSeq(p.seq,p.bpm); }
-    if(b.dataset.playstaff!=null){ const s=L.blocks[+b.dataset.playstaff].staff; playSeq(s.seq.replace(/\|/g,''),s.play,{metro:s.metro?(s.time?s.time[0]:4):0,countIn:s.metro?4:0}); }
+    if(b.dataset.playstaff!=null){ playStaff(b,L.blocks[+b.dataset.playstaff].staff,+b.dataset.playstaff,st); }
     if(b.dataset.metro!=null){ const m=L.blocks[+b.dataset.metro].metro; const ctx=audio(), spb=60/m.bpm, t0=ctx.currentTime+.1; for(let k=0;k<m.beats*3;k++) click(t0+k*spb,k%m.beats===0); }
     if(b.dataset.qplay!=null){ const q=L.quiz[+b.dataset.qplay]; playSeq(q.play,60); }
     if(b.dataset.o!=null){ const qd=b.closest('.q'), q=L.quiz[+qd.dataset.q]; if(qd.dataset.ok) return;
@@ -2277,6 +2341,21 @@ function openLesson(id){
     if(b.id==='lsdone'){ if(!PG.lessons[id]){ const before=xpInfo().lv; PG.lessons[id]=Date.now(); logToday('l'); save(); const a=xpInfo(); toast(a.lv>before?`升级了！Lv.${a.lv} ${a.title}`:'完成！+30 经验'); } closeStage(); }
     if(b.id==='lsnext'){ openLesson(LESSONS[idx+1].id); }
   });
+}
+// 课程里的“听一听”：边放边把正在响的音标亮，旁边数拍子；再点一次就停
+function playStaff(btn,s,i,st){
+  if(SEQ.owner===btn){ stopSeq(); return; }
+  stopSeq();
+  const host=$(`[data-staff="${i}"]`,st), cnt=$(`[data-cnt="${i}"]`,st), num=s.time?s.time[0]:4;
+  const gs={}; $$('g.ev',host).forEach(g=>gs[g.dataset.i]=g);
+  const reset=()=>{ Object.values(gs).forEach(g=>g.classList.remove('cur')); cnt.textContent=''; btn.innerHTML=ICON.speaker+'听一听'; SEQ.owner=null; };
+  const r=playSeq(s.seq.replace(/|/g,''),s.play,{metro:s.metro?num:0,countIn:s.metro?num:0,sustain:!!s.metro,onStop:reset});
+  SEQ.owner=btn; btn.innerHTML='■ 停止';
+  const tick=()=>{ const beat=(audio().currentTime-outLat()-r.t0)/r.spb;
+    if(beat<0) cnt.textContent='预备 '+Math.ceil(-beat-1e-6);
+    else{ cnt.textContent='第 '+(Math.floor(beat)%num+1)+' 拍';
+      r.X.evs.forEach((e,k)=>{ const g=gs[k]; if(g) g.classList.toggle('cur',!e.rest&&e.t<=beat&&beat<e.t+e.d); }); } };
+  SEQ.iv=setInterval(tick,40); tick();
 }
 function handsSVG(){
   const fingers=[{x:22,y:118,h:56,w:24,r:-38},{x:62,y:62,h:84,w:22,r:-8},{x:92,y:52,h:94,w:22,r:0},{x:122,y:60,h:86,w:21,r:6},{x:150,y:82,h:66,w:19,r:14}];
