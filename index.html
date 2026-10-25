@@ -1716,7 +1716,7 @@ function pageMap(){
   const tasks=[[ (tl.s||0)>=600,'今天练琴 10 分钟（已 '+mins+' 分钟）'],[!!tl.p,'完成一遍曲子并打分'],[!!(tl.l||tl.d),'学一节课或玩一次训练']];
   const ns=nextSong(); const S=ns&&SONG[ns];
   const kid=curProfile().kid;
-  let h=`<div class="page-h"><div><h1>${kid?esc(curProfile().name)+'，今天练什么？':'今天想弹点什么？'}</h1><p>像打游戏一样一关一关升级：练曲子拿星星，星星解锁新区域。</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${whoChip()}${syncChip()}</div></div>
+  let h=`<div class="page-h"><div><h1>${kid?esc(curProfile().name)+'，今天练什么？':'今天想弹点什么？'}</h1><p>${kid?'先练手指操，每一关拿到星星，下一关就打开。':'像打游戏一样一关一关升级：练曲子拿星星，星星解锁新区域。'}</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${whoChip()}${syncChip()}</div></div>
   <div class="hero">
    <div class="lvcard"><div class="eyebrow">LEVEL · 等级</div>
     <div class="lvrow"><span class="lvnum">${xi.lv}</span><span class="lvname">${xi.title}</span></div>
@@ -1728,7 +1728,8 @@ function pageMap(){
    </div></div>`;
   if(kid) h+=kidSection();
   if(S) h+=`<div class="card next-card" style="margin-top:16px"><div><div class="muted" style="font-size:13px">下一关推荐</div><h3>${esc(S.title)}</h3><div class="muted" style="font-size:13px">${esc(S.sub)} · 当前 ${starStr(PG.stars[ns]||0)}</div></div><button class="btn pri" data-song="${ns}">${ICON.play}开始练习</button></div>`;
-  WORLDS.forEach((w,wi)=>{
+  // 孩子只看儿童区；大人只看五个闯关区，两边不混在一起
+  if(!kid) WORLDS.forEach((w,wi)=>{
     const un=worldUnlocked(wi), ws=worldStars(w);
     h+=`<section class="world"><div class="world-h"><span class="roman">${w.roman}</span><div><h2>${w.name}</h2><p>${w.sub}</p></div><div class="wstars"><span class="stars">★</span> ${ws} / ${w.songs.length*3}</div></div>`;
     if(!un) h+=`<div class="lockmsg">${ICON.lock}在“${WORLDS[wi-1].name}”收集 ${w.need} 颗星解锁（现在 ${worldStars(WORLDS[wi-1])} 颗）</div>`;
@@ -1736,11 +1737,10 @@ function pageMap(){
     h+=`<div class="songs">${w.songs.map((id,si)=>{const s=SONG[id];
       return `<button class="song${s.boss?' boss':''}${un?'':' locked'}" data-song="${id}" ${un?'':'aria-disabled="true"'}>${s.boss?'<span class="tag">BOSS</span>':''}<span class="idx">${wi+1}-${si+1}</span><h3>${esc(s.title)}</h3><span class="meta">${esc(s.key)} · ${s.time.join('/')} 拍 · ${s.lh?'双手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}<span class="diff" aria-label="难度 ${s.lv}">${[1,2,3,4,5].map(n=>`<i class="${n<=s.lv?'on':''}"></i>`).join('')}</span></span></button>`;}).join('')}</div></section>`;
   });
-  if(!kid) h+=kidSection();
   const mine=customIds();
-  h+=`<section class="world"><div class="world-h"><span class="roman">♪</span><div><h2>我的曲库</h2><p>手里有想弹的曲子的简谱？录进来，自动配指法、可以自动配左手</p></div>${mine.length?`<div class="wstars"><span class="stars">★</span> ${mine.reduce((a,id)=>a+(PG.stars[id]||0),0)} / ${mine.length*3}</div>`:''}</div>
+  h+=`<section class="world"><div class="world-h"><span class="roman">♪</span><div><h2>${kid?esc(curProfile().name)+'的曲库':'我的曲库'}</h2><p>${kid?'老师布置了新曲子？把简谱录进来，自动配好指法':'手里有想弹的曲子的简谱？录进来，自动配指法、可以自动配左手'}</p></div>${mine.length?`<div class="wstars"><span class="stars">★</span> ${mine.reduce((a,id)=>a+(PG.stars[id]||0),0)} / ${mine.length*3}</div>`:''}</div>
    <div class="songs">${mine.map(id=>{const s=SONG[id]; return `<button class="song" data-song="${id}"><span class="idx">我的</span><h3>${esc(s.title)}</h3><span class="meta">${esc(s.key)} · ${s.time.join('/')} 拍 · ${s.lh?'双手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}</span></button>`;}).join('')}
-   <button class="song addsong" data-add><span class="plus">＋</span><h3>添加曲子</h3><span class="meta">用简谱录入，比如《风的季节》《蒲公英的约定》</span></button></div></section>`;
+   <button class="song addsong" data-add><span class="plus">＋</span><h3>添加曲子</h3><span class="meta">${kid?'用简谱录入，只有自己能看到':'用简谱录入，比如《风的季节》《蒲公英的约定》'}</span></button></div></section>`;
   return h;
 }
 function pageLearn(){
