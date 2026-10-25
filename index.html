@@ -163,6 +163,17 @@ main{padding-block:20px 104px;padding-left:max(16px,env(safe-area-inset-left,0px
 .song.addsong{border-style:dashed;align-items:flex-start;justify-content:center;background:transparent}
 .song.addsong .plus{font-size:28px;line-height:1;color:var(--accent)}
 .song.locked{opacity:.5}
+.song.kidhanon{border-color:color-mix(in srgb,var(--gold) 55%,var(--line))}
+.whochip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px 4px 4px;font-size:14px}
+.whochip:hover{border-color:var(--muted)}
+.whoav{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:14px;flex:none}
+.whoav.kid{background:var(--gold);color:#1a1405}
+.wholist{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.whorow{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:12px}
+.whorow.cur{border-color:var(--ok)}
+.whoname{flex:1;min-width:0;display:flex;flex-direction:column}
+.whoname input{font:inherit;font-weight:600;border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--ink);padding:2px 0;width:100%}
+.whoname input:focus{outline:none;border-bottom-color:var(--accent)}
 .jp-help{font-size:13px;color:var(--muted);background:var(--surface2);border-radius:10px;padding:10px 14px;line-height:1.8}
 .jp-help code{font-family:ui-monospace,Consolas,monospace;background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--ink)}
 .form{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
@@ -588,6 +599,47 @@ const WORLDS=[
  {id:'w5',roman:'V',name:'古典之巅',sub:'BOSS 关 · 三首古典名曲改编',learn:['p4','p2','p3'],songs:['canon','elise','moonlight']}
 ];
 WORLDS.forEach((w,i)=>{w.need=i===0?0:Math.ceil(WORLDS[i-1].songs.length*1.5);});
+
+/* ================= 儿童手指操 · 哈农 =================
+   哈农（C.-L. Hanon）《钢琴技巧练习》1873 年出版，早已进入公有领域。
+   这里按儿童教材的思路改编：C 五指位置开始、慢速、先单手后双手、一条一条往上练。
+   每条练习的音型（以白键音级计）和经典指法：右手上行 / 左手上行；下行时左右手指法互换（镜像）。 */
+const HANON_PAT=[
+  {no:1,off:[0,2,3,4,5,4,3,2],rh:[1,2,3,4,5,4,3,2],lh:[5,4,3,2,1,2,3,4]},
+  {no:2,off:[0,2,5,4,3,4,3,2],rh:[1,2,5,4,3,4,3,2],lh:[5,4,1,2,3,2,3,4]},
+  {no:3,off:[0,2,5,4,3,2,3,4],rh:[1,2,5,4,3,2,3,4],lh:[5,4,1,2,3,4,3,2]}
+];
+const wkName=w=>LET[((w%7)+7)%7]+Math.floor(w/7);
+function hanonHand(p,hand){
+  const shift=hand==='R'?0:-7, bars=[];
+  // 上行：从 C 起，依次从 C D E F G 开始；下行：从 G 起，依次从 G F E D C 开始
+  [28,29,30,31,32].forEach(st=>bars.push(p.off.map((o,i)=>wkName(st+o+shift)+'/.5@'+(hand==='R'?p.rh:p.lh)[i]).join(' ')));
+  [39,38,37,36,35].forEach(st=>bars.push(p.off.map((o,i)=>wkName(st-o+shift)+'/.5@'+(hand==='R'?p.lh:p.rh)[i]).join(' ')));
+  bars.push(wkName(28+shift)+'/4@'+(hand==='R'?1:5));
+  return bars.join(' | ');
+}
+const KID_REST='r/4 | r/4 | r/4 | r/4 | r/4';
+const KIDS=[
+  {id:'kid1',title:'五指爬山（右手）',sub:'热身 · 一指一键',hands0:'R',bpm:72,
+   tip:'右手 1 指（大拇指）放在中央 C，五根手指各管一个键，像爬楼梯一样上去再下来。手指要立起来，像轻轻握着一个小球。',
+   rh:'C4@1 D4@2 E4@3 F4@4 | G4@5 F4@4 E4@3 D4@2 | C4@1 D4@2 E4@3 F4@4 | G4@5 F4@4 E4@3 D4@2 | C4/4@1'},
+  {id:'kid2',title:'五指爬山（左手）',sub:'热身 · 左手五指',hands0:'L',bpm:72,
+   tip:'左手小指（5 指）放在低音 C，大拇指放在 G。左手的 5 指在最左边，从 5 指开始往上爬。',
+   rh:KID_REST, lh:'C3@5 D3@4 E3@3 F3@2 | G3@1 F3@2 E3@3 D3@4 | C3@5 D3@4 E3@3 F3@2 | G3@1 F3@2 E3@3 D3@4 | C3/4@5'},
+  {id:'kid3',title:'双手一起爬山',sub:'两只手同时动',hands0:'B',bpm:63,
+   tip:'两只手一起弹，左手比右手低一个八度，弹的音名一样。先慢慢来，两只手要同时按下去。',
+   rh:'C4@1 D4@2 E4@3 F4@4 | G4@5 F4@4 E4@3 D4@2 | C4@1 D4@2 E4@3 F4@4 | G4@5 F4@4 E4@3 D4@2 | C4/4@1',
+   lh:'C3@5 D3@4 E3@3 F3@2 | G3@1 F3@2 E3@3 D3@4 | C3@5 D3@4 E3@3 F3@2 | G3@1 F3@2 E3@3 D3@4 | C3/4@5'},
+  {id:'kid4',title:'跳跳音 1-3-5',sub:'手指跳一格',hands0:'R',bpm:72,
+   tip:'只用 1、3、5 三根手指，中间的 2、4 指别按下去。弹的是 C、E、G，这三个音合在一起就是“C 大三和弦”。',
+   rh:'C4@1 E4@3 G4@5 E4@3 | C4@1 E4@3 G4@5 E4@3 | C4@1 G4@5 E4@3 G4@5 | C4/4@1',
+   lh:'C3@5 E3@3 G3@1 E3@3 | C3@5 E3@3 G3@1 E3@3 | C3@5 G3@1 E3@3 G3@1 | C3/4@5'},
+  ...HANON_PAT.map(p=>({id:'hanon'+p.no,title:'哈农第 '+p.no+' 条',sub:'哈农手指练习 · 儿童慢速版',hands0:'R',bpm:56,hanon:true,
+   tip:'哈农是练手指力气和均匀的经典练习。先只弹右手，再只弹左手，最后双手。每个音一样响、一样长，比弹得快更重要。往下走的时候，左右手的指法正好反过来。',
+   rh:hanonHand(p,'R'),lh:hanonHand(p,'L')}))
+].map(x=>({key:'C大调',doPc:0,keySig:0,time:[4,4],lv:1,kids:true,...x}));
+KIDS.forEach(k=>SONG[k.id]=k);
+const kidUnlocked=i=>i===0||(PG.stars[KIDS[i-1].id]||0)>=1;
 
 /* 曲谱解析（带缓存） */
 function prepSong(song){
@@ -1084,7 +1136,23 @@ function sanitize(x){
   if(x.settings&&typeof x.settings==='object') b.settings=Object.assign(b.settings,x.settings);
   b.settingsAt=+x.settingsAt||0; b.updated=+x.updated||0; return b;
 }
-let PG=(()=>{try{return sanitize(JSON.parse(localStorage.getItem(LS_KEY)));}catch(_){return blank();}})();
+/* 学习者：同一台设备上爸爸、孩子各有一份进度 */
+const PROF_KEY='qintu-profiles', WHO_KEY='qintu-who';
+const defaultProfiles=()=>({list:[{id:'me',name:'我',kid:false},{id:'kid',name:'孩子',kid:true}],at:0});
+let PROFILES=(()=>{try{const p=JSON.parse(localStorage.getItem(PROF_KEY)); if(p&&Array.isArray(p.list)&&p.list.length) return p;}catch(_){} return defaultProfiles();})();
+let WHO=(()=>{try{const w=localStorage.getItem(WHO_KEY); if(w&&PROFILES.list.some(p=>p.id===w)) return w;}catch(_){} return 'me';})();
+const curProfile=()=>PROFILES.list.find(p=>p.id===WHO)||PROFILES.list[0];
+const lsKey=id=>(id||WHO)==='me'?LS_KEY:LS_KEY+':'+(id||WHO);
+const loadPG=id=>{try{return sanitize(JSON.parse(localStorage.getItem(lsKey(id))));}catch(_){return blank();}};
+let PG=loadPG();
+function saveProfiles(){ PROFILES.at=Date.now(); try{localStorage.setItem(PROF_KEY,JSON.stringify(PROFILES));}catch(_){} if(CLOUD.pref) CLOUD.pref.set(JSON.parse(JSON.stringify(PROFILES))).catch(()=>{}); }
+async function switchProfile(id){
+  if(id===WHO) return;
+  flushTime(); clearTimeout(CLOUD.timer); if(CLOUD.ref) await pushNow();
+  WHO=id; try{localStorage.setItem(WHO_KEY,id);}catch(_){}
+  PG=loadPG(); syncCustom(); bindCloud(); renderMain();
+  toast('现在是“'+curProfile().name+'”在练习');
+}
 function canon(o){ if(Array.isArray(o)) return '['+o.map(canon).join(',')+']'; if(o&&typeof o==='object') return '{'+Object.keys(o).sort().map(k=>JSON.stringify(k)+':'+canon(o[k])).join(',')+'}'; return JSON.stringify(o); }
 function merge(a,b){
   const r=blank();
@@ -1101,8 +1169,8 @@ function merge(a,b){
   r.updated=Math.max(a.updated||0,b.updated||0);
   return r;
 }
-function save(){ PG.updated=Date.now(); try{localStorage.setItem(LS_KEY,JSON.stringify(PG));}catch(_){} pushCloud(); }
-const CLOUD={ref:null,state:'local',writing:false,again:false,timer:null};
+function save(){ PG.updated=Date.now(); try{localStorage.setItem(lsKey(),JSON.stringify(PG));}catch(_){} pushCloud(); }
+const CLOUD={ref:null,pref:null,db:null,uid:null,unsub:null,state:'local',writing:false,again:false,timer:null};
 function setSync(s){ CLOUD.state=s; const n=$('#syncchip'); if(n) n.outerHTML=syncChip(); }
 function syncChip(){ const m={ok:['ok','已云端同步，换设备也能接着练'],busy:['busy','正在同步…'],local:['',STANDALONE?'进度保存在这台设备':'仅保存在本机浏览器']}[CLOUD.state]; return `<span id="syncchip" class="sync ${m[0]}"><i></i>${m[1]}</span>`; }
 async function initCloud(){
@@ -1111,17 +1179,31 @@ async function initCloud(){
     const [db,user]=await Promise.all([window.claude.use('db'),window.claude.use('user')]);
     if(!db||!user) return;
     const id=await user.id(); if(!id) return;
-    CLOUD.ref=db.doc('data/users/'+id+'/progress');
-    setSync('busy');
-    const snap=await CLOUD.ref.get();
-    if(snap.exists) applyRemote(sanitize(snap.data())); else { pushNow(); }
-    CLOUD.ref.onSnapshot(sn=>{ if(sn.exists&&!sn.metadata.hasPendingWrites) applyRemote(sanitize(sn.data())); },()=>{});
+    CLOUD.db=db; CLOUD.uid=id;
+    // 学习者名单也存云端（取较新的一份）
+    CLOUD.pref=db.doc('data/users/'+id+'/profiles');
+    const ps=await CLOUD.pref.get();
+    if(ps.exists){ const r=ps.data(); if(r&&Array.isArray(r.list)&&(r.at||0)>(PROFILES.at||0)){ PROFILES=r; try{localStorage.setItem(PROF_KEY,JSON.stringify(PROFILES));}catch(_){} if(!PROFILES.list.some(p=>p.id===WHO)) WHO=PROFILES.list[0].id; PG=loadPG(); } else if((PROFILES.at||0)>(r.at||0)) saveProfiles(); }
+    else if(PROFILES.at) saveProfiles();
+    bindCloud();
+  }catch(err){ console.warn('[琴途] 云同步不可用',err); setSync('local'); }
+}
+// 每个学习者一份云端进度：“我”沿用原来的 progress，其他人是 progress-<id>
+async function bindCloud(){
+  if(!CLOUD.db) return;
+  if(CLOUD.unsub){ try{CLOUD.unsub();}catch(_){} CLOUD.unsub=null; }
+  const who=WHO, ref=CLOUD.db.doc('data/users/'+CLOUD.uid+'/'+(who==='me'?'progress':'progress-'+who));
+  CLOUD.ref=ref; setSync('busy');
+  try{
+    const snap=await ref.get(); if(WHO!==who) return;
+    if(snap.exists) applyRemote(sanitize(snap.data())); else pushNow();
+    CLOUD.unsub=ref.onSnapshot(sn=>{ if(WHO===who&&sn.exists&&!sn.metadata.hasPendingWrites) applyRemote(sanitize(sn.data())); },()=>{});
     if(CLOUD.state==='busy'&&!CLOUD.writing) setSync('ok');
   }catch(err){ console.warn('[琴途] 云同步不可用',err); setSync('local'); }
 }
 function applyRemote(remote){
   const m=merge(PG,remote); const changed=canon(m)!==canon(PG), needPush=canon(m)!==canon(remote);
-  PG=m; try{localStorage.setItem(LS_KEY,JSON.stringify(PG));}catch(_){} syncCustom();
+  PG=m; try{localStorage.setItem(lsKey(),JSON.stringify(PG));}catch(_){} syncCustom();
   if(changed&&$('#stage').hidden) renderMain();
   if(needPush) pushCloud(); else if(!CLOUD.writing) setSync('ok');
 }
@@ -1591,7 +1673,7 @@ function renderMain(){
   const m=$('#main');
   $$('.nav-btn').forEach(b=>b.setAttribute('aria-current',b.dataset.tab===TAB?'page':'false'));
   const xi=xpInfo();
-  $('#navlv').innerHTML=`<div class="muted" style="font-size:12px">当前等级</div><div style="display:flex;align-items:baseline;gap:8px"><span class="num" style="font-size:26px;font-weight:700;color:var(--gold)">Lv.${xi.lv}</span><b>${xi.title}</b></div><div class="muted" style="font-size:12px">${xi.into} / ${xi.need} 经验</div>`;
+  $('#navlv').innerHTML=`<div class="muted" style="font-size:12px">${esc(curProfile().name)} · 当前等级</div><div style="display:flex;align-items:baseline;gap:8px"><span class="num" style="font-size:26px;font-weight:700;color:var(--gold)">Lv.${xi.lv}</span><b>${xi.title}</b></div><div class="muted" style="font-size:12px">${xi.into} / ${xi.need} 经验</div>`;
   if(TAB==='map') m.innerHTML=pageMap();
   else if(TAB==='learn') m.innerHTML=pageLearn();
   else if(TAB==='drills') m.innerHTML=pageDrills();
@@ -1604,15 +1686,34 @@ function xpKeys(frac){
   return `<div class="xpkeys">${w}${blk}</div>`;
 }
 function nextSong(){
+  if(curProfile().kid){ for(let i=0;i<KIDS.length;i++){ if(!kidUnlocked(i)) break; if((PG.stars[KIDS[i].id]||0)<2) return KIDS[i].id; } }
   for(let i=0;i<WORLDS.length;i++){ if(!worldUnlocked(i)) break; for(const id of WORLDS[i].songs) if((PG.stars[id]||0)<2) return id; }
   return null;
+}
+function kidSection(){
+  const got=KIDS.reduce((a,k)=>a+(PG.stars[k.id]||0),0);
+  return `<section class="world"><div class="world-h"><span class="roman">♫</span><div><h2>儿童手指操 · 哈农</h2><p>从五指热身到哈农练习，一条一条往上练；上一条拿到 1 颗星，下一条就解锁</p></div><div class="wstars"><span class="stars">★</span> ${got} / ${KIDS.length*3}</div></div>
+   <div class="songs">${KIDS.map((k,i)=>{ const un=kidUnlocked(i); return `<button class="song${k.hanon?' kidhanon':''}${un?'':' locked'}" data-song="${k.id}" ${un?'':'aria-disabled="true"'}><span class="idx">第 ${i+1} 关</span><h3>${esc(k.title)}</h3><span class="meta">${esc(k.sub)} · ${k.hands0==='B'?'双手':k.hands0==='L'?'左手':'右手开始'}</span><span class="foot">${starStr(PG.stars[k.id]||0)}${un?'':'<span class="pill">'+ICON.lock+'</span>'}</span></button>`; }).join('')}</div></section>`;
+}
+const whoChip=()=>`<button class="whochip" data-who aria-label="切换学习者"><span class="whoav${curProfile().kid?' kid':''}">${esc(curProfile().name.slice(0,1))}</span><span>${esc(curProfile().name)}</span><span class="muted">切换</span></button>`;
+function openWho(){
+  const rows=PROFILES.list.map(p=>{ const keep=PG; PG=p.id===WHO?PG:loadPG(p.id); const xi=xpInfo(); PG=keep;
+    return `<div class="whorow${p.id===WHO?' cur':''}"><span class="whoav${p.kid?' kid':''}">${esc(p.name.slice(0,1))}</span><span class="whoname"><input value="${esc(p.name)}" maxlength="8" data-rename="${p.id}" aria-label="名字"><small class="muted">Lv.${xi.lv} · ${xi.xp} 经验${p.kid?' · 儿童':''}</small></span>${p.id===WHO?'<span class="pill ok">正在练</span>':`<button class="btn sm pri" data-switch="${p.id}">切换到 TA</button>`}</div>`; }).join('');
+  modal(`<h3>谁在练琴？</h3><p class="muted">每个人的星星、等级和练琴记录分开记。名字可以直接改。</p><div class="wholist">${rows}</div>
+    <div class="mrow" style="margin-top:14px">${PROFILES.list.length<4?'<button class="btn" data-addkid>＋ 添加一个孩子</button>':''}<button class="btn pri" data-x>完成</button></div>`,m=>{
+    $('[data-rename]',m).forEach(inp=>inp.onchange=()=>{ const p=PROFILES.list.find(x=>x.id===inp.dataset.rename); const v=inp.value.trim().slice(0,8); if(p&&v){ p.name=v; saveProfiles(); renderMain(); } });
+    $('[data-switch]',m).forEach(b=>b.onclick=()=>{ closeModal(); switchProfile(b.dataset.switch); });
+    const add=$('[data-addkid]',m); if(add) add.onclick=()=>{ const id='kid'+Date.now().toString(36); PROFILES.list.push({id,name:'孩子'+PROFILES.list.length,kid:true}); saveProfiles(); openWho(); };
+    $('[data-x]',m).onclick=()=>{ $('[data-rename]',m).forEach(inp=>inp.onchange()); closeModal(); };
+  });
 }
 function pageMap(){
   const xi=xpInfo(), st=streaks(), tl=PG.log[dayKey()]||{};
   const mins=Math.floor((tl.s||0)/60);
   const tasks=[[ (tl.s||0)>=600,'今天练琴 10 分钟（已 '+mins+' 分钟）'],[!!tl.p,'完成一遍曲子并打分'],[!!(tl.l||tl.d),'学一节课或玩一次训练']];
   const ns=nextSong(); const S=ns&&SONG[ns];
-  let h=`<div class="page-h"><div><h1>今天想弹点什么？</h1><p>像打游戏一样一关一关升级：练曲子拿星星，星星解锁新区域。</p></div>${syncChip()}</div>
+  const kid=curProfile().kid;
+  let h=`<div class="page-h"><div><h1>${kid?esc(curProfile().name)+'，今天练什么？':'今天想弹点什么？'}</h1><p>像打游戏一样一关一关升级：练曲子拿星星，星星解锁新区域。</p></div><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${whoChip()}${syncChip()}</div></div>
   <div class="hero">
    <div class="lvcard"><div class="eyebrow">LEVEL · 等级</div>
     <div class="lvrow"><span class="lvnum">${xi.lv}</span><span class="lvname">${xi.title}</span></div>
@@ -1622,6 +1723,7 @@ function pageMap(){
     <div class="statrow"><div class="stat"><div class="v">${st.cur}</div><div class="k">连续练琴天数</div></div><div class="stat"><div class="v">${mins}</div><div class="k">今天练习分钟</div></div></div>
     <div class="card"><div style="font-weight:600;margin-bottom:8px">今日任务</div><div class="tasks">${tasks.map(([d,t])=>`<div class="task${d?' done':''}"><span class="box">${d?ICON.check:''}</span><span>${t}</span></div>`).join('')}</div></div>
    </div></div>`;
+  if(kid) h+=kidSection();
   if(S) h+=`<div class="card next-card" style="margin-top:16px"><div><div class="muted" style="font-size:13px">下一关推荐</div><h3>${esc(S.title)}</h3><div class="muted" style="font-size:13px">${esc(S.sub)} · 当前 ${starStr(PG.stars[ns]||0)}</div></div><button class="btn pri" data-song="${ns}">${ICON.play}开始练习</button></div>`;
   WORLDS.forEach((w,wi)=>{
     const un=worldUnlocked(wi), ws=worldStars(w);
@@ -1631,6 +1733,7 @@ function pageMap(){
     h+=`<div class="songs">${w.songs.map((id,si)=>{const s=SONG[id];
       return `<button class="song${s.boss?' boss':''}${un?'':' locked'}" data-song="${id}" ${un?'':'aria-disabled="true"'}>${s.boss?'<span class="tag">BOSS</span>':''}<span class="idx">${wi+1}-${si+1}</span><h3>${esc(s.title)}</h3><span class="meta">${esc(s.key)} · ${s.time.join('/')} 拍 · ${s.lh?'双手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}<span class="diff" aria-label="难度 ${s.lv}">${[1,2,3,4,5].map(n=>`<i class="${n<=s.lv?'on':''}"></i>`).join('')}</span></span></button>`;}).join('')}</div></section>`;
   });
+  if(!kid) h+=kidSection();
   const mine=customIds();
   h+=`<section class="world"><div class="world-h"><span class="roman">♪</span><div><h2>我的曲库</h2><p>手里有想弹的曲子的简谱？录进来，自动配指法、可以自动配左手</p></div>${mine.length?`<div class="wstars"><span class="stars">★</span> ${mine.reduce((a,id)=>a+(PG.stars[id]||0),0)} / ${mine.length*3}</div>`:''}</div>
    <div class="songs">${mine.map(id=>{const s=SONG[id]; return `<button class="song" data-song="${id}"><span class="idx">我的</span><h3>${esc(s.title)}</h3><span class="meta">${esc(s.key)} · ${s.time.join('/')} 拍 · ${s.lh?'双手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}</span></button>`;}).join('')}
@@ -1688,6 +1791,8 @@ document.addEventListener('click',e=>{
   if(t.dataset.tab){ TAB=t.dataset.tab; renderMain(); window.scrollTo(0,0); return; }
   if(!$('#main').contains(t)) return;
   if(t.dataset.add!=null){ openEditor(); return; }
+  if(t.dataset.who!=null){ openWho(); return; }
+  if(t.dataset.song&&SONG[t.dataset.song]&&SONG[t.dataset.song].kids){ const i=KIDS.findIndex(k=>k.id===t.dataset.song); if(!kidUnlocked(i)){ toast('先把上一关练到 1 颗星，这一关就解锁'); return; } openPlayer(t.dataset.song); return; }
   if(t.dataset.song){ const wi=WORLDS.findIndex(w=>w.songs.includes(t.dataset.song)); if(wi>=0&&!worldUnlocked(wi)){toast('这一区还没解锁：先在上一区多拿几颗星');return;} openPlayer(t.dataset.song); return; }
   if(t.dataset.lesson){ openLesson(t.dataset.lesson); return; }
   if(t.dataset.drill){ openDrill(t.dataset.drill); return; }
@@ -1706,7 +1811,7 @@ document.addEventListener('click',e=>{
         catch(_){ toast('这不是有效的进度码：请完整复制，以 QT1: 开头'); } }; });
     return; }
   if(t.id==='set-reset'){ modal(`<h3>清空所有进度？</h3><p class="muted">星星、课程、训练成绩和练琴日历都会被清除，云端的记录也会一起清空。</p><div class="mrow" style="margin-top:16px"><button class="btn" data-x>取消</button><button class="btn pri" data-ok>确认清空</button></div>`,m=>{
-      $('[data-x]',m).onclick=closeModal; $('[data-ok]',m).onclick=()=>{ const s=PG.settings; PG=blank(); PG.settings=s; PG.updated=Date.now(); try{localStorage.setItem(LS_KEY,JSON.stringify(PG));}catch(_){} if(CLOUD.ref){ CLOUD.ref.set(JSON.parse(JSON.stringify(PG))).catch(()=>{}); } closeModal(); renderMain(); toast('已清空，重新出发'); };
+      $('[data-x]',m).onclick=closeModal; $('[data-ok]',m).onclick=()=>{ const s=PG.settings; PG=blank(); PG.settings=s; PG.updated=Date.now(); try{localStorage.setItem(lsKey(),JSON.stringify(PG));}catch(_){} if(CLOUD.ref){ CLOUD.ref.set(JSON.parse(JSON.stringify(PG))).catch(()=>{}); } closeModal(); renderMain(); toast('已清空，重新出发'); };
     }); }
 });
 
@@ -1733,7 +1838,7 @@ const PL={playing:false};
 function openPlayer(id){
   const song=SONG[id], P=prepSong(song);
   const prefs=(PG.settings.songPrefs||{})[id]||{};
-  Object.assign(PL,{id,song,P,mode:'follow',hands:song.lh?(prefs.hands||'R'):'R',tf:prefs.tf||.7,metro:true,demo:true,acc:true,loop:false,
+  Object.assign(PL,{id,song,P,mode:'follow',hands:song.lh?(prefs.hands||song.hands0||'R'):'R',tf:prefs.tf||.7,metro:true,demo:true,acc:true,loop:false,
     secA:0,secB:P.measures.length-1,startBeat:0,playing:false,wm:null,lastSig:'',curSys:-1});
   const bar=P.bar, unit=4/song.time[1];
   PL.clickUnit=unit; PL.countIn=song.time[0];
