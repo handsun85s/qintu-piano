@@ -1698,13 +1698,16 @@ function kidSection(){
 const whoChip=()=>`<button class="whochip" data-who aria-label="切换学习者"><span class="whoav${curProfile().kid?' kid':''}">${esc(curProfile().name.slice(0,1))}</span><span>${esc(curProfile().name)}</span><span class="muted">切换</span></button>`;
 function openWho(){
   const rows=PROFILES.list.map(p=>{ const keep=PG; PG=p.id===WHO?PG:loadPG(p.id); const xi=xpInfo(); PG=keep;
-    return `<div class="whorow${p.id===WHO?' cur':''}"><span class="whoav${p.kid?' kid':''}">${esc(p.name.slice(0,1))}</span><span class="whoname"><input value="${esc(p.name)}" maxlength="8" data-rename="${p.id}" aria-label="名字"><small class="muted">Lv.${xi.lv} · ${xi.xp} 经验${p.kid?' · 儿童':''}</small></span>${p.id===WHO?'<span class="pill ok">正在练</span>':`<button class="btn sm pri" data-switch="${p.id}">切换到 TA</button>`}</div>`; }).join('');
+    return `<div class="whorow${p.id===WHO?' cur':''}"><span class="whoav${p.kid?' kid':''}">${esc(p.name.slice(0,1))}</span><span class="whoname"><input value="${esc(p.name)}" maxlength="8" data-rename="${p.id}" aria-label="名字"><small class="muted">Lv.${xi.lv} · ${xi.xp} 经验${p.kid?' · 儿童':''}</small></span>${p.id===WHO?'<span class="pill ok">正在练</span>':`<button class="btn sm pri" data-switch="${p.id}">切换到 TA</button>`}${p.id!=='me'&&p.id!==WHO?`<button class="btn sm" data-del="${p.id}" aria-label="删除这个学习者">删除</button>`:''}</div>`; }).join('');
   modal(`<h3>谁在练琴？</h3><p class="muted">每个人的星星、等级和练琴记录分开记。名字可以直接改。</p><div class="wholist">${rows}</div>
     <div class="mrow" style="margin-top:14px">${PROFILES.list.length<4?'<button class="btn" data-addkid>＋ 添加一个孩子</button>':''}<button class="btn pri" data-x>完成</button></div>`,m=>{
-    $('[data-rename]',m).forEach(inp=>inp.onchange=()=>{ const p=PROFILES.list.find(x=>x.id===inp.dataset.rename); const v=inp.value.trim().slice(0,8); if(p&&v){ p.name=v; saveProfiles(); renderMain(); } });
-    $('[data-switch]',m).forEach(b=>b.onclick=()=>{ closeModal(); switchProfile(b.dataset.switch); });
+    $$('[data-rename]',m).forEach(inp=>inp.onchange=()=>{ const p=PROFILES.list.find(x=>x.id===inp.dataset.rename); const v=inp.value.trim().slice(0,8); if(p&&v){ p.name=v; saveProfiles(); renderMain(); } });
+    $$('[data-switch]',m).forEach(b=>b.onclick=()=>{ closeModal(); switchProfile(b.dataset.switch); });
+    // 删除要点两次，免得误删（只从名单里移除，这个人的练习记录留在本机）
+    $$('[data-del]',m).forEach(b=>b.onclick=()=>{ if(!b.dataset.sure){ b.dataset.sure='1'; b.textContent='再点一次确认'; return; }
+      PROFILES.list=PROFILES.list.filter(p=>p.id!==b.dataset.del); saveProfiles(); openWho(); });
     const add=$('[data-addkid]',m); if(add) add.onclick=()=>{ const id='kid'+Date.now().toString(36); PROFILES.list.push({id,name:'孩子'+PROFILES.list.length,kid:true}); saveProfiles(); openWho(); };
-    $('[data-x]',m).onclick=()=>{ $('[data-rename]',m).forEach(inp=>inp.onchange()); closeModal(); };
+    $('[data-x]',m).onclick=()=>{ $$('[data-rename]',m).forEach(inp=>inp.onchange()); closeModal(); };
   });
 }
 function pageMap(){
