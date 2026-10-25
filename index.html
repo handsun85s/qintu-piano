@@ -2424,10 +2424,19 @@ function drEar(lv){
 // 曲子只在这个链接里，不在公开的网页文件里。
 function importFromHash(){
   try{ const b=location.hash.slice(4).replace(/-/g,'+').replace(/_/g,'/');
-    const inc=sanitize(JSON.parse(decodeURIComponent(escape(atob(b)))));
-    const before=customIds().length; PG=merge(PG,inc); save(); syncCustom();
-    const n=customIds().length-before;
-    toast(n>0?`已导入 ${n} 首曲子到“我的曲库”`:'这些曲子已经在“我的曲库”里了，已更新到最新');
+    const raw=JSON.parse(decodeURIComponent(escape(atob(b)))), inc=sanitize(raw);
+    // target：放进哪位学习者的曲库（例如孩子）；remove：从谁的曲库里拿掉
+    let target=WHO;
+    if(raw.target){ let p=PROFILES.list.find(x=>x.id===raw.target)||PROFILES.list.find(x=>x.kid);
+      if(!p){ p={id:'kid',name:'孩子',kid:true}; PROFILES.list.push(p); saveProfiles(); } target=p.id; }
+    const stamp=Date.now();
+    Object.entries(raw.remove||{}).forEach(([pid,ids])=>{ if(pid===target||!PROFILES.list.some(p=>p.id===pid)) return;
+      const data=pid===WHO?PG:loadPG(pid); ids.forEach(id=>{ data.custom[id]={deleted:true,at:stamp}; });
+      if(pid===WHO){ PG=data; save(); } else { data.updated=stamp; try{localStorage.setItem(lsKey(pid),JSON.stringify(data));}catch(_){} } });
+    const n=Object.keys(inc.custom).length, name=PROFILES.list.find(p=>p.id===target).name;
+    if(target===WHO){ PG=merge(PG,inc); save(); syncCustom(); toast(`已把 ${n} 首曲子放进“${name}”的曲库`); }
+    else{ const data=merge(loadPG(target),inc); data.updated=stamp; try{localStorage.setItem(lsKey(target),JSON.stringify(data));}catch(_){}
+      syncCustom(); setTimeout(()=>switchProfile(target).then(()=>toast(`已把 ${n} 首曲子放进“${name}”的曲库，现在是“${name}”在练习`)),0); }
   }catch(err){ console.warn(err); toast('导入链接不完整，请重新复制整条链接'); }
   try{ history.replaceState(null,'',location.pathname+location.search); }catch(_){}
 }
