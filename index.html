@@ -495,12 +495,14 @@ function parseSeq(str,hand){
     if(tok==='|'){bars.push(t);continue;}
     // 连音线：音符后面加 ~，和下一个同样的音连起来（下一个音不再弹，只延长时值）
     const tie=tok.includes('~'); if(tie) tok=tok.replace(/~/g,'');
+    // 跳音：音符后面加 !，弹得短（谱上画一个小圆点）
+    const stac=tok.includes('!'); if(stac) tok=tok.replace(/!/g,'');
     const [main,fing]=tok.split('@'); const [p,d]=main.split('/'); const dur=d?parseDur(d):1;
     if(p==='r'){ evs.push({hand,t,d:dur,rest:true,notes:[]}); tieFrom=null; }
     else{
       const notes=p.split('+').map(parsePitch);
       if(fing) notes.forEach((n,i)=>{n.f=fing[i]?+fing[i]:null;});
-      const ev={hand,t,d:dur,notes};
+      const ev={hand,t,d:dur,notes}; if(stac) ev.st=true;
       if(tieFrom){ const h=tieFrom.head||tieFrom; ev.tied=true; ev.head=h; h.dp=(h.dp||h.d)+dur; }
       evs.push(ev); tieFrom=tie?ev:null;
     }
@@ -665,9 +667,9 @@ function prepSong(song){
   [R,L].forEach(X=>{ if(!X) return; X.bars.forEach(b=>{const k=(b-pickup)/bar; if(Math.abs(k-Math.round(k))>1e-6) console.warn('[琴途] 小节线没对齐',song.id,X===R?'右手':'左手','拍位',b);}); });
   if(L && Math.abs(R.end-L.end)>1e-6) console.warn('[琴途] 左右手长度不同',song.id,R.end,L.end);
   // 教材里左手也可能写在高音谱表（clefL）；只有左手的练习就只画一行谱
-  const clefL=song.clefL||'bass', onlyL=L&&R.evs.every(e=>e.rest);
+  const clefL=song.clefL||'bass', clefR=song.clefR||'treble', onlyL=L&&R.evs.every(e=>e.rest);
   const P=buildP({evs:[...R.evs,...(L?L.evs:[])],bar,pickup,end,time:song.time,keySig:song.keySig||0,doPc:song.doPc||0,
-    staves:onlyL?[{clef:clefL,hand:'L'}]:L?[{clef:'treble',hand:'R'},{clef:clefL,hand:'L'}]:[{clef:'treble',hand:'R'}],showTime:true});
+    staves:onlyL?[{clef:clefL,hand:'L'}]:L?[{clef:clefR,hand:'R'},{clef:clefL,hand:'L'}]:[{clef:clefR,hand:'R'}],showTime:true});
   autoFinger(P,'R'); if(L) autoFinger(P,'L'); P.hasFingers=true;
   song._p=P; return P;
 }
@@ -974,6 +976,7 @@ function drawEvent(e,x,row,s,o,P){
   const hollow=e.d>=2-1e-6, up=(lo+hi)/2<C.mid;
   e.notes.forEach(n=>{const y=yOf(n.di);
     // 连音线：从左边连过来的一小段弧线（和前一个音连起来，不再弹）
+    if(e.st&&n===e.notes[0]){ const ext=up?yOf(lo)+s*1.2:yOf(hi)-s*1.2; g.push(`<circle class="dot" cx="${f1(x)}" cy="${f1(ext)}" r="${f1(s*.2)}"/>`); }
     if(e.tied){ const yy=y+(up?s*.75:-s*.75), dy=up?s*.75:-s*.75; g.push(`<path class="tie" d="M${f1(x-hw-s*3.2)} ${f1(yy)} Q${f1(x-hw-s*1.6)} ${f1(yy+dy)} ${f1(x-hw*.6)} ${f1(yy)}"/>`); }
     g.push(`<ellipse class="hd${hollow?' ho':''}" cx="${f1(x)}" cy="${f1(y)}" rx="${f1(hw)}" ry="${f1(s*.45)}" transform="rotate(-20 ${f1(x)} ${f1(y)})"/>`);
     if(n.show) g.push(accGlyph(n.show,x-hw-s*.85,y,s,'acc'));
@@ -1082,7 +1085,7 @@ function playSeq(seq,bpm=90,opt={}){
   const X=parseSeq(seq,'R'); const ctx=audio(); const spb=60/bpm; const t0=ctx.currentTime+.08+(opt.countIn?opt.countIn*spb:0);
   if(opt.countIn) for(let k=0;k<opt.countIn;k++) SEQ.clicks.push(click(t0-(opt.countIn-k)*spb,k===0));
   X.evs.forEach(e=>{ if(e.rest||e.tied) return; e.notes.forEach(n=>{ const v=makeVoice(n.midi,t0+e.t*spb,.7,!!opt.sustain);
-    v.stopAt(t0+(e.t+(e.dp||e.d)*.94)*spb); SEQ.voices.push(v); }); });   // 每个音按自己的时值结束，只在末尾留一点点空隙
+    v.stopAt(t0+(e.t+(e.st?Math.min(e.d,1)*.45:(e.dp||e.d)*.94))*spb); SEQ.voices.push(v); }); });   // 每个音按自己的时值结束，只在末尾留一点点空隙
   if(opt.metro) for(let b=0;b<X.end-1e-6;b+=1) SEQ.clicks.push(click(t0+b*spb,b%(opt.metro)===0,.6));
   SEQ.timer=setTimeout(()=>{ const f=SEQ.onStop; SEQ.voices=[]; SEQ.clicks=[]; SEQ.onStop=null; cancelAnimationFrame(SEQ.raf); clearInterval(SEQ.iv); f&&f(); opt.onEnd&&opt.onEnd(); },(t0-ctx.currentTime+X.end*spb)*1000+150);
   SEQ.onStop=opt.onStop||null;
@@ -1616,9 +1619,9 @@ const customIds=()=>Object.keys(PG.custom||{}).filter(id=>PG.custom[id]&&!PG.cus
 function syncCustom(){
   Object.keys(SONG).forEach(id=>{ if(SONG[id].custom&&!(PG.custom[id]&&!PG.custom[id].deleted)) delete SONG[id]; });
   customIds().forEach(id=>{ const c=PG.custom[id]; if(SONG[id]&&SONG[id].at===c.at) return;
-    SONG[id]={id,custom:true,at:c.at,title:c.title,sub:c.sub||'我的曲子',key:c.keyLabel||('1='+keyName(c.key)),doPc:KEYS[c.key].pc,keySig:KEYS[c.key].ks,time:c.time,pickup:c.pickup||0,bpm:c.bpm,lv:0,
+    SONG[id]={id,custom:true,at:c.at,title:c.title,sub:c.sub||'我的曲子',key:c.keyLabel||('1='+keyName(c.key)),doPc:(KEYS[c.key]||KEYS.C).pc,keySig:(KEYS[c.key]||KEYS.C).ks,time:c.time,pickup:c.pickup||0,bpm:c.bpm,lv:0,
       tip:c.tip||'这首是你自己录入的。指法是自动配的，觉得别扭就按顺手的来，但每次都用同一种。',rh:c.rh,lh:c.lh||null,
-      hands0:c.hands0,clefL:c.clefL,book:c.book,bookTitle:c.bookTitle,unit:c.unit,ord:c.ord}; });
+      hands0:c.hands0,clefL:c.clefL,clefR:c.clefR,book:c.book,bookTitle:c.bookTitle,unit:c.unit,ord:c.ord}; });
 }
 /* ================= 教材闯关 =================
    孩子的教材（例如《孩子们的拜厄》）有版权，曲谱不写在这个公开的网页文件里，
@@ -1796,7 +1799,7 @@ function bookSections(){
       const open=OPEN_UNIT[k]!=null?OPEN_UNIT[k]:u.ids.includes(cur);
       h+=`<div class="unit"><button class="unit-h" data-unit="${k}" aria-expanded="${open}"><b>${esc(u.name)}</b><span class="muted">${done} / ${u.ids.length} 条过关</span><span class="chev">${open?'收起':'展开'}</span></button>`;
       if(open) h+=`<div class="songs">${u.ids.map(id=>{ const s=SONG[id], un=bookUnlocked(id);
-        return `<button class="song${un?'':' locked'}${id===cur?' cur':''}" data-song="${id}"><span class="idx">第 ${s.ord} 关</span><h3>${esc(s.title)}</h3><span class="meta">${s.time.join('/')} 拍 · ${s.hands0==='B'?'双手':s.hands0==='L'?'左手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}${un?'':'<span class="pill">'+ICON.lock+'</span>'}</span></button>`; }).join('')}</div>`;
+        return `<button class="song${un?'':' locked'}${id===cur?' cur':''}" data-song="${id}"><span class="idx">第 ${ids.indexOf(id)+1} 关</span><h3>${esc(s.title)}</h3><span class="meta">${s.time.join('/')} 拍 · ${s.hands0==='B'?'双手':s.hands0==='L'?'左手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}${un?'':'<span class="pill">'+ICON.lock+'</span>'}</span></button>`; }).join('')}</div>`;
       h+='</div>'; });
     h+='</section>';
   });
@@ -2144,7 +2147,7 @@ function plSched(){
   const ctx=AU.ctx, now=ctx.currentTime, hz=now+.15, spb=60/(PL.song.bpm*PL.tf), E=secEnd(), evs=PL.P.evs;
   while(PL.nextEv<evs.length){ const e=evs[PL.nextEv]; if(e.t>=E-1e-6){PL.nextEv=evs.length;break;}
     const T=PL.T0+(e.t-PL.b0)*spb; if(T>hz) break;
-    if(!e.rest&&!e.tied&&((PL.demo&&!MIC.on)||!handOn(e.hand))) e.notes.forEach(n=>tone(n.midi,T,(e.dp||e.d)*spb*.96,handVel(e.hand)));
+    if(!e.rest&&!e.tied&&((PL.demo&&!MIC.on)||!handOn(e.hand))) e.notes.forEach(n=>tone(n.midi,T,(e.st?Math.min(e.d,1)*.45:(e.dp||e.d)*.96)*spb,handVel(e.hand)));
     if(!e.rest&&!e.tied&&handOn(e.hand)&&MIC.on&&PL.fb) { const sound=new Set(); evs.forEach(x=>{ if(!x.rest&&x.t<=e.t+1e-6&&e.t<x.t+x.d-1e-6) x.notes.forEach(n=>sound.add(n.midi)); });
       PL.fb.pend.push({e,T:T+outLat(),got:new Set(),on:false,req:new Set(e.notes.map(n=>n.midi)),sound}); }
     PL.nextEv++; }
