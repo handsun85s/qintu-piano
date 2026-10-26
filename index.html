@@ -1270,8 +1270,15 @@ async function initCloud(){
     const ps=await CLOUD.pref.get();
     if(ps.exists){ const r=ps.data(); if(r&&Array.isArray(r.list)&&(r.at||0)>(PROFILES.at||0)){ PROFILES=r; try{localStorage.setItem(PROF_KEY,JSON.stringify(PROFILES));}catch(_){} if(!PROFILES.list.some(p=>p.id===WHO)) WHO=PROFILES.list[0].id; PG=loadPG(); } else if((PROFILES.at||0)>(r.at||0)) saveProfiles(); }
     else if(PROFILES.at) saveProfiles();
-    bindCloud();
+    bindCloud(); loadCloudBooks();
   }catch(err){ console.warn('[琴途] 云同步不可用',err); setSync('local'); }
+}
+// 教材：云端 books 文档列出有哪几本，每本一个 book-<id> 文档（只读）
+async function loadCloudBooks(){
+  try{ const idx=await CLOUD.db.doc('data/users/'+CLOUD.uid+'/books').get(); if(!idx.exists) return;
+    let changed=false; for(const bk of (idx.data().list||[])){ const d=await CLOUD.db.doc('data/users/'+CLOUD.uid+'/book-'+bk).get(); if(d.exists&&putBook(bk,d.data())) changed=true; }
+    if(changed){ syncBooks(); if($('#stage').hidden) renderMain(); }
+  }catch(err){ console.warn('[琴途] 教材读取失败',err); }
 }
 // 每个学习者一份云端进度：“我”沿用原来的 progress，其他人是 progress-<id>
 async function bindCloud(){
@@ -1616,18 +1623,35 @@ const KEYS={C:{pc:0,ks:0},G:{pc:7,ks:1},D:{pc:2,ks:2},A:{pc:9,ks:3},E:{pc:4,ks:4
 const MAJ=[0,2,4,5,7,9,11];
 const keyName=k=>k.replace('b','♭');
 const customIds=()=>Object.keys(PG.custom||{}).filter(id=>PG.custom[id]&&!PG.custom[id].deleted).sort((a,b)=>(PG.custom[a].created||0)-(PG.custom[b].created||0));
+const songFrom=(id,c,extra)=>Object.assign({id,at:c.at,title:c.title,sub:c.sub||'我的曲子',key:c.keyLabel||('1='+keyName(c.key)),doPc:(KEYS[c.key]||KEYS.C).pc,keySig:(KEYS[c.key]||KEYS.C).ks,time:c.time,pickup:c.pickup||0,bpm:c.bpm,lv:0,
+  tip:c.tip||'这首是你自己录入的。指法是自动配的，觉得别扭就按顺手的来，但每次都用同一种。',rh:c.rh,lh:c.lh||null,
+  hands0:c.hands0,clefL:c.clefL,clefR:c.clefR,book:c.book,bookTitle:c.bookTitle,unit:c.unit,ord:c.ord},extra);
 function syncCustom(){
+  migrateBooks();
   Object.keys(SONG).forEach(id=>{ if(SONG[id].custom&&!(PG.custom[id]&&!PG.custom[id].deleted)) delete SONG[id]; });
-  customIds().forEach(id=>{ const c=PG.custom[id]; if(SONG[id]&&SONG[id].at===c.at) return;
-    SONG[id]={id,custom:true,at:c.at,title:c.title,sub:c.sub||'我的曲子',key:c.keyLabel||('1='+keyName(c.key)),doPc:(KEYS[c.key]||KEYS.C).pc,keySig:(KEYS[c.key]||KEYS.C).ks,time:c.time,pickup:c.pickup||0,bpm:c.bpm,lv:0,
-      tip:c.tip||'这首是你自己录入的。指法是自动配的，觉得别扭就按顺手的来，但每次都用同一种。',rh:c.rh,lh:c.lh||null,
-      hands0:c.hands0,clefL:c.clefL,clefR:c.clefR,book:c.book,bookTitle:c.bookTitle,unit:c.unit,ord:c.ord}; });
+  customIds().forEach(id=>{ const c=PG.custom[id]; if(c.book) return; if(SONG[id]&&SONG[id].at===c.at) return; SONG[id]=songFrom(id,c,{custom:true}); });
+  syncBooks();
 }
 /* ================= 教材闯关 =================
-   孩子的教材（例如《孩子们的拜厄》）有版权，曲谱不写在这个公开的网页文件里，
-   只通过私人导入链接放进孩子自己的曲库（带 book / unit / ord 字段），这里按教材顺序排成关卡。 */
-const bookIds=()=>{ const m={}; customIds().forEach(id=>{ const s=SONG[id]; if(s&&s.book) (m[s.book]=m[s.book]||[]).push(id); });
-  Object.values(m).forEach(a=>a.sort((x,y)=>SONG[x].ord-SONG[y].ord)); return m; };
+   孩子的教材（例如《孩子们的拜厄》）有版权，曲谱不写在这个公开的网页文件里。
+   教材单独存放（本机 localStorage 的 qintu-books，云端每本书一个文档 book-<书名>），不放进学习进度里；
+   数据只来自私人导入链接或你自己的云端，这里按教材顺序排成关卡。 */
+const BOOK_KEY='qintu-books';
+let BOOKS=(()=>{ try{ return JSON.parse(localStorage.getItem(BOOK_KEY))||{}; }catch(_){ return {}; } })();
+function saveBooks(){ try{ localStorage.setItem(BOOK_KEY,JSON.stringify(BOOKS)); }catch(_){} }
+function putBook(id,b){ if(!b||!b.songs) return false; const old=BOOKS[id]; if(old&&(old.at||0)>=(b.at||0)) return false; BOOKS[id]=b; saveBooks(); return true; }
+function syncBooks(){
+  Object.keys(SONG).forEach(id=>{ const s=SONG[id]; if(s.bookSong&&!(BOOKS[s.book]&&BOOKS[s.book].songs[id])) delete SONG[id]; });
+  Object.entries(BOOKS).forEach(([bk,b])=>Object.entries(b.songs).forEach(([id,c])=>{ if(SONG[id]&&SONG[id].at===c.at) return; SONG[id]=songFrom(id,c,{custom:true,bookSong:true}); }));
+}
+// 早期版本把教材放在孩子的曲库（custom）里：搬到 BOOKS，并在曲库里留删除标记
+function migrateBooks(){
+  const moved={}; Object.entries(PG.custom||{}).forEach(([id,c])=>{ if(c&&!c.deleted&&c.book){ (moved[c.book]=moved[c.book]||{at:c.at,title:c.bookTitle,songs:{}}).songs[id]=c; PG.custom[id]={deleted:true,at:Date.now()}; } });
+  if(!Object.keys(moved).length) return false;
+  Object.entries(moved).forEach(([bk,b])=>{ if(!BOOKS[bk]) BOOKS[bk]=b; }); saveBooks(); save(); return true;
+}
+const bookIds=()=>{ const m={}; Object.entries(BOOKS).sort((a,b)=>(a[1].order||0)-(b[1].order||0)).forEach(([bk,b])=>{ const ids=Object.keys(b.songs).filter(id=>SONG[id]);
+    if(ids.length) m[bk]=ids.sort((x,y)=>SONG[x].ord-SONG[y].ord); }); return m; };
 // 上一条拿到 1 颗星就解锁下一条；老师已经教过的，可以直接“跳到这里”（记在设置里，跟着进度同步）
 function bookUnlocked(id){ const s=SONG[id], ids=bookIds()[s.book]||[], i=ids.indexOf(id);
   if(i<=0) return true; const from=((PG.settings.bookFrom||{})[s.book])||0;
@@ -1860,7 +1884,7 @@ function pageMap(){
     h+=`<div class="songs">${w.songs.map((id,si)=>{const s=SONG[id];
       return `<button class="song${s.boss?' boss':''}${un?'':' locked'}" data-song="${id}" ${un?'':'aria-disabled="true"'}>${s.boss?'<span class="tag">BOSS</span>':''}<span class="idx">${wi+1}-${si+1}</span><h3>${esc(s.title)}</h3><span class="meta">${esc(s.key)} · ${s.time.join('/')} 拍 · ${s.lh?'双手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}<span class="diff" aria-label="难度 ${s.lv}">${[1,2,3,4,5].map(n=>`<i class="${n<=s.lv?'on':''}"></i>`).join('')}</span></span></button>`;}).join('')}</div></section>`;
   });
-  const mine=customIds().filter(id=>!SONG[id].book);
+  const mine=customIds().filter(id=>SONG[id]&&!SONG[id].book);
   h+=`<section class="world"><div class="world-h"><span class="roman">♪</span><div><h2>${kid?esc(curProfile().name)+'的曲库':'我的曲库'}</h2><p>${kid?'老师布置了新曲子？把简谱录进来，自动配好指法':'手里有想弹的曲子的简谱？录进来，自动配指法、可以自动配左手'}</p></div>${mine.length?`<div class="wstars"><span class="stars">★</span> ${mine.reduce((a,id)=>a+(PG.stars[id]||0),0)} / ${mine.length*3}</div>`:''}</div>
    <div class="songs">${mine.map(id=>{const s=SONG[id]; return `<button class="song" data-song="${id}"><span class="idx">我的</span><h3>${esc(s.title)}</h3><span class="meta">${esc(s.key)} · ${s.time.join('/')} 拍 · ${s.lh?'双手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}</span></button>`;}).join('')}
    <button class="song addsong" data-add><span class="plus">＋</span><h3>添加曲子</h3><span class="meta">${kid?'用简谱录入，只有自己能看到':'用简谱录入，比如《风的季节》《蒲公英的约定》'}</span></button></div></section>`;
@@ -2580,6 +2604,7 @@ async function readHash(){
 }
 async function importFromHash(){
   try{ const raw=await readHash(), inc=sanitize(raw);
+    Object.entries(raw.books||{}).forEach(([bk,b])=>putBook(bk,b));
     // target：放进哪位学习者的曲库（例如孩子）；remove：从谁的曲库里拿掉
     let target=WHO;
     if(raw.target){ let p=PROFILES.list.find(x=>x.id===raw.target)||PROFILES.list.find(x=>x.kid);
@@ -2588,7 +2613,7 @@ async function importFromHash(){
     Object.entries(raw.remove||{}).forEach(([pid,ids])=>{ if(pid===target||!PROFILES.list.some(p=>p.id===pid)) return;
       const data=pid===WHO?PG:loadPG(pid); ids.forEach(id=>{ data.custom[id]={deleted:true,at:stamp}; });
       if(pid===WHO){ PG=data; save(); } else { data.updated=stamp; try{localStorage.setItem(lsKey(pid),JSON.stringify(data));}catch(_){} } });
-    const n=Object.keys(inc.custom).length, name=PROFILES.list.find(p=>p.id===target).name;
+    const n=Object.keys(inc.custom).length+Object.values(raw.books||{}).reduce((a,b)=>a+Object.keys(b.songs||{}).length,0), name=PROFILES.list.find(p=>p.id===target).name;
     if(target===WHO){ PG=merge(PG,inc); save(); syncCustom(); renderMain(); toast(`已把 ${n} 首曲子放进“${name}”的曲库`); }
     else{ const data=merge(loadPG(target),inc); data.updated=stamp; try{localStorage.setItem(lsKey(target),JSON.stringify(data));}catch(_){}
       syncCustom(); setTimeout(()=>switchProfile(target).then(()=>toast(`已把 ${n} 首曲子放进“${name}”的曲库，现在是“${name}”在练习`)),0); }
