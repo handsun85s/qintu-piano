@@ -1873,6 +1873,7 @@ function pageMap(){
     <div class="statrow"><div class="stat"><div class="v">${st.cur}</div><div class="k">连续练琴天数</div></div><div class="stat"><div class="v">${mins}</div><div class="k">今天练习分钟</div></div></div>
     <div class="card"><div style="font-weight:600;margin-bottom:8px">今日任务</div><div class="tasks">${tasks.map(([d,t])=>`<div class="task${d?' done':''}"><span class="box">${d?ICON.check:''}</span><span>${t}</span></div>`).join('')}</div></div>
    </div></div>`;
+  if(!STANDALONE&&(Object.keys(BOOKS).length&&kid||customIds().length)) h+=`<div class="card next-card" style="margin-top:16px"><div><div class="muted" style="font-size:13px">要用麦克风听琴？</div><h3>在听琴版里练</h3><div class="muted" style="font-size:13px">这里不能用麦克风。点右边，${kid?'教材和':''}曲库会一起带到听琴版（每台设备点一次）</div></div><button class="btn" data-transfer>打开听琴版</button></div>`;
   if(kid) h+=bookSections()+kidSection();
   if(S) h+=`<div class="card next-card" style="margin-top:16px"><div><div class="muted" style="font-size:13px">下一关推荐</div><h3>${esc(S.title)}</h3><div class="muted" style="font-size:13px">${esc(S.sub)} · 当前 ${starStr(PG.stars[ns]||0)}</div></div><button class="btn pri" data-song="${ns}">${ICON.play}开始练习</button></div>`;
   // 孩子只看儿童区；大人只看五个闯关区，两边不混在一起
@@ -1922,6 +1923,7 @@ function pageMe(){
    <div class="setrow"><div class="l"><b>显示指法数字</b><span>乐谱上方和键盘上的手指编号</span></div><div class="seg" id="set-fing"><button data-v="1" aria-pressed="${!!PG.settings.fingers}">显示</button><button data-v="0" aria-pressed="${!PG.settings.fingers}">隐藏</button></div></div>
    <div class="setrow"><div class="l"><b>连接电钢琴（MIDI）</b><span>用 USB 线连接电钢琴后，等待模式能自动识别你弹的音（电脑版 Chrome / Edge）</span></div><button class="btn" id="set-midi">连接</button></div>
    <div class="setrow"><div class="l"><b>进度保存</b><span>${STANDALONE?'这个网址的进度保存在当前设备的浏览器里。换设备时用下面的“进度码”搬过去。':'登录 Claude 打开这个链接时，进度自动保存到云端，在电脑、手机、Pad 之间同步；否则只保存在当前浏览器。'}</span></div>${syncChip()}</div>
+   ${!STANDALONE&&(Object.keys(BOOKS).length||customIds().length)?`<div class="setrow"><div class="l"><b>带到听琴版</b><span>手机、Pad 上要用麦克风听琴，得用 GitHub 上的听琴版。点一下就把${curProfile().kid?'教材和':''}曲库带过去（每台设备点一次）。</span></div><button class="btn pri" data-transfer>打开听琴版</button></div>`:''}
    <div class="setrow"><div class="l"><b>进度码（搬家用）</b><span>复制进度码，到另一台设备或另一个网址粘贴导入，星星和记录会合并在一起。</span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="set-export">复制进度码</button><button class="btn" id="set-import">粘贴导入…</button></div></div>
    <div class="setrow"><div class="l"><b>清空所有进度</b><span>星星、课程和练习记录都会被清除，无法恢复</span></div><button class="btn" id="set-reset">清空…</button></div>
   </div>`;
@@ -1951,6 +1953,7 @@ document.addEventListener('click',e=>{
   if(t.closest('#set-label')&&t.dataset.v!=null){ PG.settings.label=t.dataset.v; PG.settingsAt=Date.now(); save(); renderMain(); return; }
   if(t.closest('#set-fing')){ PG.settings.fingers=t.dataset.v==='1'; PG.settingsAt=Date.now(); save(); renderMain(); return; }
   if(t.id==='set-midi'){ connectMIDI(); return; }
+  if(t.dataset.transfer!=null){ openTransfer(t); return; }
   if(t.id==='set-export'){ const code='QT1:'+btoa(unescape(encodeURIComponent(JSON.stringify(PG))));
     const fallback=()=>modal(`<h3>进度码</h3><p class="muted">自动复制没成功，请手动全选下面的文字并复制。</p><textarea id="expcode" readonly style="width:100%;height:120px;margin-top:10px;font:12px monospace">${esc(code)}</textarea><div class="mrow" style="margin-top:12px"><button class="btn pri" data-x>好了</button></div>`,m=>{ $('[data-x]',m).onclick=closeModal; const ta=$('#expcode'); ta.focus(); ta.select(); });
     try{ navigator.clipboard.writeText(code).then(()=>toast('进度码已复制，去另一边“粘贴导入”'),fallback); }catch(_){ fallback(); }
@@ -2601,6 +2604,28 @@ async function readHash(){
   const h=location.hash, bin=Uint8Array.from(atob(h.slice(4).replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
   if(h.startsWith('#qz=')) return JSON.parse(await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text());
   return JSON.parse(new TextDecoder().decode(bin));
+}
+// Claude 版 → GitHub 听琴版：把当前学习者的曲库和教材打包成 #qz= 链接，在新窗口打开
+// （数据来自你自己的云端，链接只在这台设备上生成，不经过别处）
+const LISTEN_URL='https://handsun85s.github.io/qintu-piano/';
+async function transferLink(){
+  const custom={}; customIds().forEach(id=>{ if(!PG.custom[id].book) custom[id]=PG.custom[id]; });
+  const payload={custom}; if(curProfile().kid){ payload.target=WHO; payload.books=BOOKS; }
+  const bytes=new Uint8Array(await new Response(new Blob([JSON.stringify(payload)]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+  let bin=''; for(let i=0;i<bytes.length;i+=8192) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
+  return LISTEN_URL+'#qz='+btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function openTransfer(btn){
+  btn.disabled=true; let url;
+  try{ url=await transferLink(); }catch(err){ console.warn(err); toast('打包失败，请再试一次'); btn.disabled=false; return; }
+  btn.disabled=false;
+  // 两种方式：直接打开；万一打不开，复制链接后粘贴到浏览器地址栏
+  modal(`<h3>打开听琴版</h3><p class="muted">点“打开听琴版”，会在浏览器里打开，并自动导入${curProfile().kid?'教材和':''}曲库。<br>如果没反应，点“复制链接”，再到浏览器地址栏长按、粘贴、打开。</p>
+    <div class="mrow" style="margin-top:14px;flex-wrap:wrap"><button class="btn" data-x>取消</button><button class="btn" data-copy>复制链接</button><a class="btn pri" href="${url}" target="_blank" rel="noopener">打开听琴版</a></div>`,m=>{
+    $('[data-x]',m).onclick=closeModal; $('a',m).onclick=()=>setTimeout(closeModal,300);
+    $('[data-copy]',m).onclick=async()=>{ try{ await navigator.clipboard.writeText(url); toast('已复制，到浏览器地址栏粘贴打开'); }
+      catch(_){ const ta=document.createElement('textarea'); ta.value=url; document.body.appendChild(ta); ta.select(); let ok=false; try{ ok=document.execCommand('copy'); }catch(_){} ta.remove(); toast(ok?'已复制，到浏览器地址栏粘贴打开':'复制没成功，请点“打开听琴版”'); } };
+  });
 }
 async function importFromHash(){
   try{ const raw=await readHash(), inc=sanitize(raw);
