@@ -409,6 +409,10 @@ body.staged{overflow:hidden}
 .rate button.sug{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
 .rate button:hover{border-color:var(--muted)}
 .mrow{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.backup-person{display:block;padding:12px;margin:12px 0;border:1px solid var(--line);border-radius:12px}
+.backup-person b,.backup-person span{display:block}
+.backup-person select{display:block;width:100%;min-width:0;max-width:100%;margin-top:6px;padding:9px;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.backup-actions{position:sticky;bottom:-22px;margin:16px -22px -22px;padding:12px 22px;background:var(--surface);border-top:1px solid var(--line)}
 #toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;background:var(--ink);color:var(--surface);padding:10px 18px;border-radius:999px;font-size:14px;max-width:calc(100% - 32px);text-align:center}
 #toast[hidden]{display:none}
 @media (max-width:520px){
@@ -1246,7 +1250,8 @@ function merge(a,b){
   keys(a.lessons,b.lessons).forEach(k=>r.lessons[k]=Math.min(a.lessons[k]||Infinity,b.lessons[k]||Infinity));
   keys(a.drills,b.drills).forEach(k=>{const x=a.drills[k]||{},y=b.drills[k]||{}; const best={};
     keys(x.best,y.best).forEach(l=>best[l]=Math.max((x.best||{})[l]||0,(y.best||{})[l]||0));
-    r.drills[k]={rounds:Math.max(x.rounds||0,y.rounds||0),best};});
+    const newer=(a.updated||0)>=(b.updated||0);
+    r.drills[k]=Object.assign({},newer?y:x,newer?x:y,{rounds:Math.max(x.rounds||0,y.rounds||0),best});});
   keys(a.log,b.log).forEach(k=>{const x=a.log[k]||{},y=b.log[k]||{}; const o={};
     keys(x,y).forEach(f=>o[f]=Math.max(x[f]||0,y[f]||0)); r.log[k]=o;});
   const sa=(a.settingsAt||0)>=(b.settingsAt||0)?a:b; r.settings=Object.assign(r.settings,sa.settings); r.settingsAt=sa.settingsAt||0;
@@ -2010,7 +2015,14 @@ function downloadBackup(data){
   setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
 function exportBackup(){
-  try{ flushTime(); const data=backupSnapshot(); downloadBackup(data); toast('已发起下载，请在浏览器下载记录中确认备份文件'); }
+  try{
+    flushTime(); const data=backupSnapshot();
+    const finish=()=>{ try{ downloadBackup(backupSnapshot()); closeModal(); toast('已发起下载，请在浏览器下载记录中确认备份文件'); }catch(err){ showBackupError(err); } };
+    if(backupHasContent(data)){ finish(); return; }
+    modal(`<h3>当前浏览器还没有学习记录</h3><p class="muted">没有找到练习进度、私人曲目或教材。如果以前练过琴，请回到当时使用的设备和浏览器导出，避免把空文件当成完整备份。</p><p class="muted" style="margin-top:10px">仍可导出当前的学习者名单和设置。</p><div class="mrow" style="margin-top:16px"><button class="btn" data-x>返回检查</button><button class="btn pri" data-ok>仍然导出</button></div>`,m=>{
+      $('[data-x]',m).onclick=closeModal; $('[data-ok]',m).onclick=finish;
+    });
+  }
   catch(err){ showBackupError(err); }
 }
 function showBackupError(err){
@@ -2021,20 +2033,44 @@ function backupSummary(data){
   const books=Object.values(data.books), songs=books.reduce((n,b)=>n+Object.values(b.songs).filter(c=>!c.deleted).length,0);
   return `${data.profiles.list.length} 位学习者、${count} 首私人曲目、${books.length} 本教材（${songs} 条练习）`;
 }
-// 先生成合并结果，所有本地写入成功之后才更新内存；中途存储失败则撤销本次写入。
-function planBackupRestore(data){
-  const local=backupSnapshot(), profiles=JSON.parse(JSON.stringify(local.profiles)), progress={};
+function backupHasContent(data){
+  return Object.values(data.books).some(b=>Object.values(b.songs).some(c=>!c.deleted))||Object.values(data.progress).some(p=>
+    Object.values(p.stars).some(n=>n>0)||Object.keys(p.lessons).length||Object.values(p.drills).some(d=>d.rounds>0||Object.values(d.best).some(n=>n>0))||
+    Object.values(p.log).some(d=>Object.values(d).some(n=>n>0))||Object.values(p.custom).some(c=>!c.deleted));
+}
+function backupDefaultTargets(data){
+  const targets=Object.create(null), used=new Set();
   data.profiles.list.forEach(p=>{
-    const i=profiles.list.findIndex(x=>x.id===p.id);
-    if(i>=0){ if(profiles.list[i].kid!==p.kid) backupFail('“'+p.name+'”与本机学习者类型不同，无法自动合并。'); if((data.profiles.at||0)>(local.profiles.at||0)) profiles.list[i]=p; }
-    else profiles.list.push(p);
+    const same=PROFILES.list.filter(x=>x.kid===p.kid&&x.name===p.name), byId=same.find(x=>x.id===p.id);
+    const copies=same.filter(x=>x.restoreSourceId===p.id), match=byId||(copies.length===1?copies[0]:null);
+    targets[p.id]=match&&!used.has(match.id)?match.id:'';
+    if(targets[p.id]) used.add(targets[p.id]);
+  });
+  return targets;
+}
+// 先生成合并结果，所有本地写入成功之后才更新内存；中途存储失败则撤销本次写入。
+function planBackupRestore(data,targets){
+  const local=backupSnapshot(), profiles=JSON.parse(JSON.stringify(local.profiles)), progress=JSON.parse(JSON.stringify(local.progress)), used=new Set();
+  targets=targets||backupDefaultTargets(data);
+  data.profiles.list.forEach(p=>{
+    if(!Object.prototype.hasOwnProperty.call(targets,p.id)||typeof targets[p.id]!=='string') backupFail('请为每位学习者选择恢复位置。');
+    let id=targets[p.id];
+    if(id){
+      const existing=local.profiles.list.find(x=>x.id===id);
+      if(!existing) backupFail('选择的学习者已发生变化，请重新打开备份文件。');
+      if(existing.kid!==p.kid) backupFail('“'+p.name+'”与所选学习者类型不同，请分别保存。');
+      if(used.has(id)) backupFail('两位学习者不能恢复到同一个人名下，请分别选择。');
+    }else{
+      id=p.id;
+      if(profiles.list.some(x=>x.id===id)){
+        const base=p.id.slice(0,60)+'-restore'; id=base; let n=2;
+        while(profiles.list.some(x=>x.id===id)||data.profiles.list.some(x=>x.id===id)) id=base+'-'+n++;
+      }
+      profiles.list.push(Object.assign({},p,{id,restoreSourceId:p.id}));
+    }
+    used.add(id); progress[id]=merge(progress[id]||blank(),data.progress[p.id]);
   });
   profiles.at=Math.max(Date.now(),profiles.at||0,data.profiles.at||0);
-  profiles.list.forEach(p=>{
-    const a=local.progress[p.id]||blank(), b=data.progress[p.id]||blank(), merged=merge(a,b), localNewer=(a.updated||0)>=(b.updated||0);
-    Object.keys(merged.drills).forEach(id=>{ const x=a.drills[id]||{}, y=b.drills[id]||{}; merged.drills[id]=Object.assign({},localNewer?y:x,localNewer?x:y,merged.drills[id]); });
-    progress[p.id]=merged;
-  });
   const books=JSON.parse(JSON.stringify(local.books));
   Object.entries(data.books).forEach(([id,b])=>{
     const old=books[id];
@@ -2062,22 +2098,35 @@ function writeBackupRestore(plan){
     backupFail(rolledBack?'浏览器没有足够空间或不允许保存，本次恢复已撤销，原数据保留。':'浏览器存储发生错误，请保留备份文件，暂时不要继续练习，并联系维护者。');
   }
 }
-function restoreBackup(data){
+function restoreBackup(data,targets){
   flushTime();
-  const plan=planBackupRestore(data); writeBackupRestore(plan);
+  const plan=planBackupRestore(data,targets); writeBackupRestore(plan);
   PROFILES=plan.profiles; BOOKS=plan.books; PG=plan.progress[WHO];
   syncCustom(); closeModal(); renderMain();
   if(CLOUD.pref) CLOUD.pref.set(JSON.parse(JSON.stringify(PROFILES))).catch(()=>{});
   pushCloud();
-  toast('恢复成功，所有学习者的本机进度、曲库和教材已合并');
+  toast('恢复成功，可到“闯关练琴”切换学习者查看');
 }
-function previewBackup(data){
+function previewBackup(data,fileName){
   // 预览阶段先检查本机数据与学习者是否可合并，不写入任何内容。
-  planBackupRestore(data);
-  const names=data.profiles.list.map(p=>{ const local=PROFILES.list.find(x=>x.id===p.id); return `<li>${esc(p.name)}${local&&local.name!==p.name?'（将与本机“'+esc(local.name)+'”合并）':''}</li>`; }).join('');
-  modal(`<h3>恢复备份</h3><p>${backupSummary(data)}</p><ul>${names}</ul><p class="muted">按学习者分别合并，保留本机已有内容：星星和训练成绩取较高值，同一天练习时长取较大值；同名曲目和设置按更新时间合并。重复恢复不会累加时长。恢复后仍停留在当前学习者，可切换查看其他人的记录。${!STANDALONE?'此文件只包含当时已保存到原浏览器的内容，其他学习者的云端同步需在切换后检查。':''}</p><div class="mrow" style="margin-top:16px;flex-wrap:wrap"><button class="btn" data-x>取消</button><button class="btn pri" data-ok>确认合并恢复</button></div>`,m=>{
+  const targets=backupDefaultTargets(data); planBackupRestore(data,targets);
+  const date=typeof data.exportedAt==='string'?new Date(data.exportedAt):null;
+  const created=date&&Number.isFinite(date.getTime())?date.toLocaleString('zh-CN'):'未记录';
+  const names=data.profiles.list.map((p,i)=>{
+    const stats=data.progress[p.id], stars=Object.values(stats.stars).reduce((n,s)=>n+s,0), seconds=Object.values(stats.log).reduce((n,d)=>n+(d.s||0),0);
+    const duration=seconds<60?Math.round(seconds)+' 秒':Math.floor(seconds/60)+' 分钟';
+    const options=PROFILES.list.filter(x=>x.kid===p.kid).map(x=>`<option value="${esc(x.id)}"${targets[p.id]===x.id?' selected':''}>合并到本机：${esc(x.name)}</option>`).join('');
+    return `<label class="backup-person"><b>${esc(p.name)} · ${p.kid?'孩子':'成人'}</b><span class="muted">${stars} 颗星 · 完成 ${Object.keys(stats.lessons).length} 课 · 练习 ${duration}</span><span style="margin-top:8px">“${esc(p.name)}”的记录恢复到</span><select data-backup-target="${i}" aria-label="${esc(p.name)}的记录恢复到"><option value=""${targets[p.id]?'':' selected'}>单独保存为：${esc(p.name)}</option>${options}</select></label>`;
+  }).join('');
+  modal(`<h3>恢复备份</h3><p class="muted">文件：${esc(fileName||'琴途备份')}<br>备份时间：${esc(created)}</p><p style="margin-top:10px">${backupSummary(data)}</p>${!backupHasContent(data)?'<p class="jp-err" role="status">这份文件没有学习记录或曲目，请确认是否选对备份。</p>':''}<p class="muted" style="margin-top:10px">先确认每个人的记录放到谁名下。名称不一致时默认单独保存，避免混在一起；如确认是同一个人，可选择合并。</p>${names}<p class="muted">已有星星、训练成绩和同日练习时长取较高值；同一首曲目和设置按更新时间合并。重复恢复不累加时长，恢复后仍停留在当前学习者。${!STANDALONE?'仅包含当时已保存到原浏览器的内容，其他学习者的云端同步需在切换后检查。':''}</p><p class="jp-err" id="backup-target-error" role="status" hidden></p><div class="mrow backup-actions"><button class="btn" data-x>取消</button><button class="btn pri" data-ok>确认合并恢复</button></div>`,m=>{
     $('[data-x]',m).onclick=closeModal;
-    $('[data-ok]',m).onclick=()=>{ try{ restoreBackup(data); }catch(err){ showBackupError(err); } };
+    const collect=()=>{ const selected=Object.create(null); $$('[data-backup-target]',m).forEach(el=>{ selected[data.profiles.list[+el.dataset.backupTarget].id]=el.value; }); return selected; };
+    $$('[data-backup-target]',m).forEach(el=>el.onchange=()=>{
+      const error=$('#backup-target-error',m), ok=$('[data-ok]',m);
+      try{ planBackupRestore(data,collect()); error.hidden=true; error.textContent=''; ok.disabled=false; }
+      catch(err){ error.textContent=err.message; error.hidden=false; ok.disabled=true; }
+    });
+    $('[data-ok]',m).onclick=()=>{ try{ restoreBackup(data,collect()); }catch(err){ showBackupError(err); } };
   });
 }
 function readBackupFile(file){
@@ -2085,7 +2134,7 @@ function readBackupFile(file){
   if(file.size>BACKUP_LIMIT){ showBackupError(new Error('文件超过 20 MB，请选择琴途备份文件。')); return; }
   const reader=new FileReader();
   reader.onerror=()=>showBackupError(new Error('文件读取失败，请重新选择。'));
-  reader.onload=()=>{ try{ const text=String(reader.result).replace(/^\uFEFF/,''); let data; try{ data=JSON.parse(text); }catch(_){ backupFail('文件不是完整的 JSON 备份，请重新选择下载的备份文件。'); } previewBackup(validateBackup(data)); }catch(err){ showBackupError(err); } };
+  reader.onload=()=>{ try{ const text=String(reader.result).replace(/^\uFEFF/,''); let data; try{ data=JSON.parse(text); }catch(_){ backupFail('文件不是完整的 JSON 备份，请重新选择下载的备份文件。'); } previewBackup(validateBackup(data),file.name); }catch(err){ showBackupError(err); } };
   reader.readAsText(file,'utf-8');
 }
 /* ================= 文件备份与恢复结束 ================= */
