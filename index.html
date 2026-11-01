@@ -1922,9 +1922,10 @@ function pageMe(){
    <div class="setrow"><div class="l"><b>乐谱下方的标注</b><span>音名 C D E / 唱名 do re mi / 简谱 1 2 3</span></div><div class="seg" id="set-label">${[['name','音名'],['sol','唱名'],['jp','简谱'],['','不显示']].map(([v,t])=>`<button data-v="${v}" aria-pressed="${PG.settings.label===v}">${t}</button>`).join('')}</div></div>
    <div class="setrow"><div class="l"><b>显示指法数字</b><span>乐谱上方和键盘上的手指编号</span></div><div class="seg" id="set-fing"><button data-v="1" aria-pressed="${!!PG.settings.fingers}">显示</button><button data-v="0" aria-pressed="${!PG.settings.fingers}">隐藏</button></div></div>
    <div class="setrow"><div class="l"><b>连接电钢琴（MIDI）</b><span>用 USB 线连接电钢琴后，等待模式能自动识别你弹的音（电脑版 Chrome / Edge）</span></div><button class="btn" id="set-midi">连接</button></div>
-   <div class="setrow"><div class="l"><b>进度保存</b><span>${STANDALONE?'这个网址的进度保存在当前设备的浏览器里。换设备时用下面的“进度码”搬过去。':'登录 Claude 打开这个链接时，进度自动保存到云端，在电脑、手机、Pad 之间同步；否则只保存在当前浏览器。'}</span></div>${syncChip()}</div>
+   <div class="setrow"><div class="l"><b>进度保存</b><span>${STANDALONE?'这个网址的进度保存在当前设备的浏览器里。换设备时，可用下面的“文件备份与恢复”搬过去。':'登录 Claude 打开这个链接时，进度自动保存到云端；也可以把已保存在此浏览器中的内容导出为文件。'}</span></div>${syncChip()}</div>
    ${!STANDALONE&&(Object.keys(BOOKS).length||customIds().length)?`<div class="setrow"><div class="l"><b>带到听琴版</b><span>手机、Pad 上要用麦克风听琴，得用 GitHub 上的听琴版。点一下就把${curProfile().kid?'教材和':''}曲库带过去（每台设备点一次）。</span></div><button class="btn pri" data-transfer>打开听琴版</button></div>`:''}
-   <div class="setrow"><div class="l"><b>进度码（搬家用）</b><span>复制进度码，到另一台设备或另一个网址粘贴导入，星星和记录会合并在一起。</span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="set-export">复制进度码</button><button class="btn" id="set-import">粘贴导入…</button></div></div>
+   <div class="setrow"><div class="l"><b>文件备份与恢复</b><span>备份此浏览器里的所有学习者、学习进度、设置、私人曲库和教材。把文件传到另一台设备后，选择文件即可恢复，不用复制长链接。文件含私人内容，请自己保管。</span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn pri" id="set-backup">导出备份文件</button><button class="btn" id="set-restore">从文件恢复…</button><input id="backup-file" type="file" accept=".json,application/json" hidden></div></div>
+   <div class="setrow"><div class="l"><b>旧版进度码</b><span>只搬运当前学习者的进度和私人曲库，不含单独保存的教材。完整搬家请用文件备份。</span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="set-export">复制进度码</button><button class="btn" id="set-import">粘贴导入…</button></div></div>
    <div class="setrow"><div class="l"><b>清空所有进度</b><span>星星、课程和练习记录都会被清除，无法恢复</span></div><button class="btn" id="set-reset">清空…</button></div>
   </div>`;
   return h;
@@ -1937,7 +1938,160 @@ function heatmap(){
   return h+`</div><div class="muted" style="font-size:12px;margin-top:8px">颜色越深练得越久：浅 &lt; 5 分钟 · 中 &lt; 20 分钟 · 深 ≥ 20 分钟</div>`;
 }
 
+/* ================= 文件备份与恢复 ================= */
+const BACKUP_FORMAT='qintu-backup', BACKUP_LIMIT=20*1024*1024;
+const backupObject=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
+const backupFail=message=>{ throw new Error(message); };
+function checkBackupTree(x,depth=0){
+  if(depth>40) backupFail('文件内容层级过多，无法恢复。');
+  if(typeof x==='number'&&!Number.isFinite(x)) backupFail('文件中有无效数字。');
+  if(!x||typeof x!=='object') return;
+  Object.keys(x).forEach(k=>{ if(['__proto__','prototype','constructor'].includes(k)) backupFail('文件中有不支持的数据字段。'); checkBackupTree(x[k],depth+1); });
+}
+function checkBackupMap(x,label){ if(!backupObject(x)) backupFail(label+'格式不正确。'); }
+function checkBackupNumber(x,label){ if(typeof x!=='number'||!Number.isFinite(x)||x<0) backupFail(label+'格式不正确。'); }
+function checkBackupSongs(songs){
+  checkBackupMap(songs,'曲库');
+  Object.values(songs).forEach(c=>{
+    checkBackupMap(c,'曲目');
+    if(c.at!=null) checkBackupNumber(c.at,'曲目时间');
+    if(c.deleted===true) return;
+    if(typeof c.title!=='string'||!c.title.trim()||typeof c.rh!=='string'||(c.lh!=null&&typeof c.lh!=='string')) backupFail('曲目缺少名称或乐谱。');
+    if(!Array.isArray(c.time)||c.time.length!==2||!c.time.every(n=>Number.isInteger(n)&&n>0&&n<=64)) backupFail('曲目的拍号不正确。');
+    if(typeof c.key!=='string'||!KEYS[c.key]) backupFail('曲目的调号不正确。');
+    if(typeof c.bpm!=='number'||!Number.isFinite(c.bpm)||c.bpm<=0||c.bpm>1000) backupFail('曲目的速度不正确。');
+  });
+}
+function checkBackupProgress(p){
+  checkBackupMap(p,'进度');
+  ['stars','lessons','drills','log','custom','settings'].forEach(k=>checkBackupMap(p[k],'进度中的 '+k));
+  Object.values(p.stars).forEach(n=>{ checkBackupNumber(n,'星星'); if(!Number.isInteger(n)||n>3) backupFail('星星数量不正确。'); });
+  Object.values(p.lessons).forEach(n=>checkBackupNumber(n,'课程记录'));
+  Object.values(p.drills).forEach(d=>{ checkBackupMap(d,'训练记录'); checkBackupNumber(d.rounds,'训练次数'); checkBackupMap(d.best,'训练成绩'); Object.values(d.best).forEach(n=>checkBackupNumber(n,'训练成绩')); });
+  Object.values(p.log).forEach(d=>{ checkBackupMap(d,'练习日历'); Object.values(d).forEach(n=>checkBackupNumber(n,'练习记录')); });
+  checkBackupSongs(p.custom);
+  ['updated','settingsAt'].forEach(k=>{ if(p[k]!=null) checkBackupNumber(p[k],'进度时间'); });
+}
+function validateBackup(data){
+  checkBackupTree(data);
+  if(!backupObject(data)||data.format!==BACKUP_FORMAT) backupFail('请选择“导出备份文件”生成的琴途 JSON 文件。旧版进度码仍可用“粘贴导入”。');
+  if(data.version!==1) backupFail('此备份版本暂不支持，请使用生成备份的网站版本打开。');
+  checkBackupMap(data.profiles,'学习者名单');
+  const list=data.profiles.list;
+  if(!Array.isArray(list)||!list.length||list.length>50) backupFail('学习者名单不正确。');
+  const seen=new Set();
+  list.forEach(p=>{
+    if(!backupObject(p)||typeof p.id!=='string'||!/^[-a-zA-Z0-9_]{1,80}$/.test(p.id)||seen.has(p.id)||typeof p.name!=='string'||!p.name.trim()||p.name.length>100||typeof p.kid!=='boolean') backupFail('学习者信息不正确或存在重复。');
+    seen.add(p.id);
+  });
+  if(data.profiles.at!=null) checkBackupNumber(data.profiles.at,'学习者时间');
+  if(!seen.has(data.activeProfile)) backupFail('备份的当前学习者不在名单中。');
+  checkBackupMap(data.progress,'学习进度');
+  if(Object.keys(data.progress).length!==list.length) backupFail('学习者与进度数量不一致。');
+  list.forEach(p=>{ if(!Object.prototype.hasOwnProperty.call(data.progress,p.id)) backupFail('备份缺少学习者进度。'); checkBackupProgress(data.progress[p.id]); });
+  checkBackupMap(data.books,'教材');
+  Object.values(data.books).forEach(b=>{ checkBackupMap(b,'教材'); if(typeof b.title!=='string'||!b.title.trim()) backupFail('教材缺少名称。'); if(b.at!=null) checkBackupNumber(b.at,'教材时间'); checkBackupSongs(b.songs); });
+  return data;
+}
+function backupSnapshot(){
+  const progress={};
+  PROFILES.list.forEach(p=>{
+    if(p.id===WHO) progress[p.id]=JSON.parse(JSON.stringify(PG));
+    else{ const raw=localStorage.getItem(lsKey(p.id)); progress[p.id]=raw?JSON.parse(raw):blank(); }
+  });
+  return validateBackup(JSON.parse(JSON.stringify({format:BACKUP_FORMAT,version:1,exportedAt:new Date().toISOString(),activeProfile:WHO,profiles:PROFILES,progress,books:BOOKS})));
+}
+function downloadBackup(data){
+  const text=JSON.stringify(data,null,2);
+  if(new Blob([text]).size>BACKUP_LIMIT) backupFail('备份超过 20 MB，请先联系维护者处理。');
+  const url=URL.createObjectURL(new Blob([text],{type:'application/json;charset=utf-8'}));
+  const a=document.createElement('a'), stamp=new Date().toISOString().replace(/[:.]/g,'-');
+  a.href=url; a.download='琴途备份-'+stamp+'.json'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+function exportBackup(){
+  try{ flushTime(); const data=backupSnapshot(); downloadBackup(data); toast('已发起下载，请在浏览器下载记录中确认备份文件'); }
+  catch(err){ showBackupError(err); }
+}
+function showBackupError(err){
+  modal(`<h3>文件操作未完成</h3><p class="muted">${esc(err.message||'文件无法读取，请重新选择。')}</p><div class="mrow" style="margin-top:16px"><button class="btn pri" data-x>知道了</button></div>`,m=>{ $('[data-x]',m).onclick=closeModal; });
+}
+function backupSummary(data){
+  const count=Object.values(data.progress).reduce((n,p)=>n+Object.values(p.custom).filter(c=>!c.deleted).length,0);
+  const books=Object.values(data.books), songs=books.reduce((n,b)=>n+Object.values(b.songs).filter(c=>!c.deleted).length,0);
+  return `${data.profiles.list.length} 位学习者、${count} 首私人曲目、${books.length} 本教材（${songs} 条练习）`;
+}
+// 先生成合并结果，所有本地写入成功之后才更新内存；中途存储失败则撤销本次写入。
+function planBackupRestore(data){
+  const local=backupSnapshot(), profiles=JSON.parse(JSON.stringify(local.profiles)), progress={};
+  data.profiles.list.forEach(p=>{
+    const i=profiles.list.findIndex(x=>x.id===p.id);
+    if(i>=0){ if(profiles.list[i].kid!==p.kid) backupFail('“'+p.name+'”与本机学习者类型不同，无法自动合并。'); if((data.profiles.at||0)>(local.profiles.at||0)) profiles.list[i]=p; }
+    else profiles.list.push(p);
+  });
+  profiles.at=Math.max(Date.now(),profiles.at||0,data.profiles.at||0);
+  profiles.list.forEach(p=>{
+    const a=local.progress[p.id]||blank(), b=data.progress[p.id]||blank(), merged=merge(a,b), localNewer=(a.updated||0)>=(b.updated||0);
+    Object.keys(merged.drills).forEach(id=>{ const x=a.drills[id]||{}, y=b.drills[id]||{}; merged.drills[id]=Object.assign({},localNewer?y:x,localNewer?x:y,merged.drills[id]); });
+    progress[p.id]=merged;
+  });
+  const books=JSON.parse(JSON.stringify(local.books));
+  Object.entries(data.books).forEach(([id,b])=>{
+    const old=books[id];
+    if(!old){ books[id]=JSON.parse(JSON.stringify(b)); return; }
+    const newer=(old.at||0)>=(b.at||0)?old:b, songs=merge(Object.assign(blank(),{custom:old.songs}),Object.assign(blank(),{custom:b.songs})).custom;
+    books[id]=Object.assign({},newer,{songs});
+  });
+  // 兼容旧版仍放在私人曲库中的教材，迁移时逐曲合并，避免遗漏已有教材中的条目。
+  Object.values(progress).forEach(p=>Object.entries(p.custom).forEach(([id,c])=>{
+    if(!c||c.deleted||!c.book) return;
+    const b=books[c.book]||(books[c.book]={title:c.bookTitle||c.book,at:c.at||0,songs:{}}), old=b.songs[id];
+    if(!old||(c.at||0)>(old.at||0)) b.songs[id]=c;
+    b.at=Math.max(b.at||0,c.at||0); p.custom[id]={deleted:true,at:Math.max(Date.now(),c.at||0)};
+  }));
+  return validateBackup({format:BACKUP_FORMAT,version:1,activeProfile:WHO,profiles,progress,books});
+}
+function writeBackupRestore(plan){
+  const writes=plan.profiles.list.map(p=>[lsKey(p.id),JSON.stringify(plan.progress[p.id])]);
+  writes.push([PROF_KEY,JSON.stringify(plan.profiles)],[BOOK_KEY,JSON.stringify(plan.books)]);
+  const before=writes.map(([key])=>[key,localStorage.getItem(key)]), changed=[];
+  try{ writes.forEach(([key,value],i)=>{ localStorage.setItem(key,value); changed.push(i); }); }
+  catch(err){
+    let rolledBack=true;
+    changed.reverse().forEach(i=>{ const [key,value]=before[i]; try{ if(value===null) localStorage.removeItem(key); else localStorage.setItem(key,value); }catch(_){ rolledBack=false; } });
+    backupFail(rolledBack?'浏览器没有足够空间或不允许保存，本次恢复已撤销，原数据保留。':'浏览器存储发生错误，请保留备份文件，暂时不要继续练习，并联系维护者。');
+  }
+}
+function restoreBackup(data){
+  flushTime();
+  const plan=planBackupRestore(data); writeBackupRestore(plan);
+  PROFILES=plan.profiles; BOOKS=plan.books; PG=plan.progress[WHO];
+  syncCustom(); closeModal(); renderMain();
+  if(CLOUD.pref) CLOUD.pref.set(JSON.parse(JSON.stringify(PROFILES))).catch(()=>{});
+  pushCloud();
+  toast('恢复成功，所有学习者的本机进度、曲库和教材已合并');
+}
+function previewBackup(data){
+  // 预览阶段先检查本机数据与学习者是否可合并，不写入任何内容。
+  planBackupRestore(data);
+  const names=data.profiles.list.map(p=>{ const local=PROFILES.list.find(x=>x.id===p.id); return `<li>${esc(p.name)}${local&&local.name!==p.name?'（将与本机“'+esc(local.name)+'”合并）':''}</li>`; }).join('');
+  modal(`<h3>恢复备份</h3><p>${backupSummary(data)}</p><ul>${names}</ul><p class="muted">按学习者分别合并，保留本机已有内容：星星和训练成绩取较高值，同一天练习时长取较大值；同名曲目和设置按更新时间合并。重复恢复不会累加时长。恢复后仍停留在当前学习者，可切换查看其他人的记录。${!STANDALONE?'此文件只包含当时已保存到原浏览器的内容，其他学习者的云端同步需在切换后检查。':''}</p><div class="mrow" style="margin-top:16px;flex-wrap:wrap"><button class="btn" data-x>取消</button><button class="btn pri" data-ok>确认合并恢复</button></div>`,m=>{
+    $('[data-x]',m).onclick=closeModal;
+    $('[data-ok]',m).onclick=()=>{ try{ restoreBackup(data); }catch(err){ showBackupError(err); } };
+  });
+}
+function readBackupFile(file){
+  if(!file) return;
+  if(file.size>BACKUP_LIMIT){ showBackupError(new Error('文件超过 20 MB，请选择琴途备份文件。')); return; }
+  const reader=new FileReader();
+  reader.onerror=()=>showBackupError(new Error('文件读取失败，请重新选择。'));
+  reader.onload=()=>{ try{ const text=String(reader.result).replace(/^\uFEFF/,''); let data; try{ data=JSON.parse(text); }catch(_){ backupFail('文件不是完整的 JSON 备份，请重新选择下载的备份文件。'); } previewBackup(validateBackup(data)); }catch(err){ showBackupError(err); } };
+  reader.readAsText(file,'utf-8');
+}
+/* ================= 文件备份与恢复结束 ================= */
+
 /* 主页面事件 */
+document.addEventListener('change',e=>{ if(e.target.id==='backup-file'){ const file=e.target.files[0]; e.target.value=''; readBackupFile(file); } });
 document.addEventListener('click',e=>{
   const t=e.target.closest('button'); if(!t) return;
   if(t.dataset.tab){ TAB=t.dataset.tab; renderMain(); window.scrollTo(0,0); return; }
@@ -1953,6 +2107,8 @@ document.addEventListener('click',e=>{
   if(t.closest('#set-label')&&t.dataset.v!=null){ PG.settings.label=t.dataset.v; PG.settingsAt=Date.now(); save(); renderMain(); return; }
   if(t.closest('#set-fing')){ PG.settings.fingers=t.dataset.v==='1'; PG.settingsAt=Date.now(); save(); renderMain(); return; }
   if(t.id==='set-midi'){ connectMIDI(); return; }
+  if(t.id==='set-backup'){ exportBackup(); return; }
+  if(t.id==='set-restore'){ $('#backup-file').click(); return; }
   if(t.dataset.transfer!=null){ openTransfer(t); return; }
   if(t.id==='set-export'){ const code='QT1:'+btoa(unescape(encodeURIComponent(JSON.stringify(PG))));
     const fallback=()=>modal(`<h3>进度码</h3><p class="muted">自动复制没成功，请手动全选下面的文字并复制。</p><textarea id="expcode" readonly style="width:100%;height:120px;margin-top:10px;font:12px monospace">${esc(code)}</textarea><div class="mrow" style="margin-top:12px"><button class="btn pri" data-x>好了</button></div>`,m=>{ $('[data-x]',m).onclick=closeModal; const ta=$('#expcode'); ta.focus(); ta.select(); });
