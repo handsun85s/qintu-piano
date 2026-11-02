@@ -611,15 +611,68 @@ const SONGS=[
   rh:[rep(T3('G#3','C#4','E4'),4), rep(T3('G#3','C#4','E4'),4), rep(T3('A3','C#4','E4'),2)+' '+rep(T3('A3','D4','F#4'),2), T3('G#3','B#3','F#4')+' '+T3('G#3','C#4','E4')+' '+T3('G#3','C#4','D#4')+' '+T3('F#3','B#3','D#4'), rep(T3('G#3','C#4','E4'),2)+' G#3+C#4+E4/2'].join(' | '),
   lh:'C#2+C#3/4@51 | B1+B2/4@51 | A1+A2/2@51 F#1+F#2/2@51 | G#1+G#2/4@51 | C#2+C#3/4@51'}
 ];
+// 成人流行选段：旋律参考列出的公开谱面，移调/简化节奏，伴奏为本站教学编配。
+// 都是选段，非完整原版；参考谱面与私人教材不随网站发布。
+const popBass=(chords,mode)=>chords.map(c=>{
+  const n=c.split(' ');
+  if(mode===1) return n[0]+'/4@5';
+  if(mode===2) return n[0]+'/2@5 '+n[2]+'/2@1';
+  if(mode===3) return n[0]+'@5 '+n[2]+'@1 '+n[1]+'@3 '+n[2]+'@1';
+  return [n[0],n[2],n[1],n[2],n[0],n[2],n[1],n[2]].map((p,i)=>p+'/.5@'+[5,1,3,1,5,1,3,1][i]).join(' ');
+}).join(' | ');
+const POP_CHORDS={C:'C3 E3 G3',Am:'A2 C3 E3',F:'F2 A2 C3',G:'G2 B2 D3',Em:'E2 G2 B2',Dm:'D3 F3 A3',Fs:'F#2 A2 C#3',D:'D2 F#2 A2',A:'A2 C#3 E3',E:'E2 G#2 B2'};
+const popLH=(names,mode)=>popBass(names.split(' ').map(k=>POP_CHORDS[k]),mode);
+const ADULT_ADDITIONS=[
+ {id:'pop-firefly',title:'虫儿飞',sub:'陈光荣 · 主歌选段／右手入门',key:'C大调',doPc:0,keySig:0,time:[4,4],bpm:72,lv:1,world:0,source:'https://www.everyonepiano.cn/Number-182.html',
+  tip:'练习重点：同音重复、二分长音与低音换位。前四小节用 C 五指位置；第 4 小节末准备向左移，先把 B3、A3 找好。长音按满两拍，不要把几个重复音连成一个音。此为移调主歌选段。',
+  rh:'E4@3 E4/.5@3 E4/.5@3 F4@4 G4@5 | E4/2@3 D4/2@2 | C4@1 C4/.5@1 C4/.5@1 D4@2 E4@3 | E4/2@5 B3/2@2 | A3@1 E4@5 D4/2@4 | A3@1 E4@5 D4/2@4 | A3@1 E4@5 D4/1.5@4 C4/.5@3 | C4/4@3'},
+ {id:'pop-smalltown',title:'小城故事',sub:'邓丽君 · 主歌选段／右手入门',key:'C大调',doPc:0,keySig:0,time:[4,4],bpm:64,lv:1,world:0,source:'https://www.everyonepiano.cn/Number-23.html',
+  tip:'练习重点：轻柔重复与小幅换位。右手先以 E4 为起点，把 G、A、C5 的位置找好；句末长音时把手放松，再移到下一句。第 2 小节的 G 连成一个长音，附点节奏先数慢。选取主歌八小节，略去前奏。',
+  rh:'E4/1.5@1 G4/.5@2 A4/.5@3 G4/.5@2 A4/.5@3 C5/.5@5 | A4/.5@3 G4/1.5~@2 G4/2@2 | G4/1.5 A4/.5 E4/.5 D4/.5 E4/.5 G4/.5 | D4/4 | D4/1.5 E4/.5 G4 A4/.5 C5/.5 | A4 A4/.5 C5/.5 A4 G4 | G4 G4/.5 D4/.5 E4 D4 | C4/4'},
+ {id:'pop-moon',title:'月亮代表我的心',sub:'邓丽君 · 主歌选段／双手长音',key:'C大调',doPc:0,keySig:0,time:[4,4],pickup:1,bpm:72,lv:2,world:1,source:'https://www.everyonepiano.cn/Number-1666.html',
+  tip:'练习重点：弱起与双手对齐。开头的 G3 是预备小节最后一拍，左手休息；下一小节 C4 与低音 C3 同时落下。左手每小节只按一个长音，先练低音变化。主歌开头八小节，移至 C 调并简化伴奏。',
+  rh:'G3 | C4/1.5 E4/.5 G4/1.5 C5/.5 | B4/1.5 E4/.5 G4/1.5 G4/.5 | A4/1.5 B4/.5 C5 A4 | G4/3 E4/.5 D4/.5 | C4/1.5 C4/.5 C4 E4/.5 D4/.5 | C4/1.5 C4/.5 C4 D4/.5 E4/.5 | D4/1.5 C4/.5 A3 E4 | D4/4',
+  lh:'r | '+popLH('C Am F G Am F G G',1)},
+ {id:'pop-sweet',title:'甜蜜蜜',sub:'邓丽君 · 主题选段／双手长音',key:'C大调',doPc:0,keySig:0,time:[2,4],pickup:1,bpm:66,lv:2,world:1,source:'https://www.everyonepiano.cn/Number-109.html',
+  tip:'练习重点：2/4 拍与短弱起。先把左手各小节的低音连起来，右手有三个半拍音的地方要均匀。开头 G、A、C、D 各四分之一拍，是把原谱开头压缩成的一拍弱起；本段略去装饰和弦。',
+  rh:'G4/.25 A4/.25 C5/.25 D5/.25 | E5/2 | G4 A4/.5 G4/.25 A4/.25 | C5 E5/.5 F5/.25 E5/.25 | C5 E5/.5 F5/.25 E5/.25 | E5 G5/.75 A5/.25 | E5/1.5 C5/.5 | D5/.75 C5/.25 D5/.5 E5/.25 G5/.25 | E5/2',
+  lh:'r | C3/2@5 | G2/2@5 | C3/2@5 | C3/2@5 | C3/2@5 | C3/2@5 | G2/2@5 | C3/2@5'},
+ {id:'pop-fairytale',title:'童话',sub:'光良 · 主歌选段／附点与连音',key:'C大调',doPc:0,keySig:0,time:[4,4],bpm:64,lv:3,world:2,source:'https://www.everyonepiano.cn/Number-89.html',
+  tip:'练习重点：附点节奏和跨小节连音。带连线的两个相同音只弹一次，持续按住；左手一小节两个低音，不能跟着右手的短音加速。主歌开头八小节，十六分音符适度简化。',
+  rh:'E5/3 E5/.75 D5/.25 | D5/.75 C5/.25~ C5/2 C5/.75 B4/.25 | B4/.75 A4/.25~ A4/2 A4/.75 G4/.25 | G4/2~ G4/.5 G4/.5 C5/.5 B4/.5 | C5 G4~ G4/.5 G4/.5 C5/.5 B4/.5 | C5 G4~ G4/.5 G4/.5 C5/.5 B4/.5 | C5/1.5 C5/.5 C5/.5 A4/.5 A4/.5 G4/.5 | G4/4',
+  lh:popLH('C Am F G C Am F G',2)},
+ {id:'pop-later',title:'后来',sub:'刘若英 · 副歌选段／八分节奏',key:'C大调',doPc:0,keySig:0,time:[4,4],bpm:66,lv:3,world:2,source:'https://www.everyonepiano.cn/Number-2065.html',
+  tip:'练习重点：副歌的八分音符、长短交替。右手保留副歌旋律，略去琶音装饰；左手每两拍一个低音。第 5 小节开始旋律往上走，整只手跟着移动，避免硬撑手指。前八小节移调并简化细碎装饰。',
+  rh:'G4 C5/.5 D5/.5 C5 C5/.5 D5/.5 | C5 C5/.5 D5/.5 E5/2 | F5/1.5 G5/.5 E5/2 | F5/1.5 E5/.5 D5 B4/.5 A4/.5 | G4/1.5 C5/.5 C5/.5 D5/.5 E5/.5 F5/.5 | E5/1.5 F5/.5 E5 C5/.5 B4/.5 | C5/2 C5 D5 | G4/4',
+  lh:popLH('C Am F G C Em Am G',2)},
+ {id:'pop-sunny',title:'晴天',sub:'周杰伦 · 前奏选段／分解伴奏',key:'C大调',doPc:0,keySig:0,time:[4,4],bpm:62,lv:4,world:3,source:'https://www.everyonepiano.cn/Number-17453.html',
+  tip:'练习重点：休止后进入与十六分音符。第 1 拍先休半拍再进；第 2、4 小节的短音先单独慢练。左手用均匀四分音符分解和弦，不追随右手节奏。本段选前奏八小节，伴奏改编并简化装饰音。',
+  rh:'r/.5 G4/.5 G4/.5 C5/.5 C5 D5/.5 E5/.5 | r/.5 G4/.5 G4/.5 C5/.5 C5/.5 D5/.25 E5/.25 D5/.25 C5/.25 G4/.5 | r/.5 G4/.5 G4/.5 C5/.5 C5 D5/.5 E5/.5 | r/.5 E5 D5/.25 E5/.25 F5/.25 E5/.25 D5/.25 F5/.25 E5/.25 D5/.25 C5/.5 | G4/.5 C5/.5 C5/.5 E5/.5 F5/.5 E5/.5 D5/.5 C5/.25 D5/.25 | E5/.5 E5/.5 E5/.5 E5/.5 D5/.25 E5/.25 D5/.5 C5 | G4/.5 C5/.5 C5/.5 E5/.5 F5/.5 E5/.5 D5/.5 C5/.25 D5/.25 | E5/.5 E5/.5 E5/.5 E5/.5 D5/.25 E5/.25 D5/.5 C5',
+  lh:popLH('Am C Am C Am C Am C',3)},
+ {id:'pop-chrysanthemum',title:'菊花台',sub:'周杰伦 · 主歌选段／旋律与伴奏独立',key:'C大调',doPc:0,keySig:0,time:[4,4],bpm:66,lv:4,world:3,source:'https://www.everyonepiano.cn/Number-12091.html',
+  tip:'练习重点：右手歌唱、左手保持均匀。第 5 小节的 G–E 装饰简化为两个八分音符；左手用根音、五音、三音分解，换和弦时整体移位。主歌八小节，右手长音不要因左手换音而提前松开。',
+  rh:'E5 E5/.5 D5/.5 E5/2 | E5/.5 G5/.5 E5/.5 D5/.5 E5/2 | C5 C5/.5 D5/.5 E5/.5 G5/.5 E5 | D5 D5/.5 C5/.5 D5/2 | E5 G5/.5 E5/.5 A5/.5 G5/1.5 | A5/.5 G5/.5 G5/.5 E5/.5 G5/1.5 G4/.5 | E5 D5/.5 E5/.5 G5 E5/.5 D5/.5 | D5 D5/.5 C5/.5 D5/2',
+  lh:popLH('C Am F G C Am F G',3)},
+ {id:'pop-river',title:'River Flows in You',sub:'李闰珉 · 主题选段／连续分解和弦',key:'A大调',doPc:9,keySig:3,time:[4,4],bpm:54,lv:5,world:4,source:'https://www.everyonepiano.cn/Number-75.html',
+  tip:'练习重点：三个升号、旋律换位与连续八分伴奏。F、C、G 都要升高半音。取四拍主题动机，移低八度，统一四拍并简化切分及收尾，非完整原版。先练左手八音型，合手从 40% 速度开始，手腕随位置移动。',
+  rh:'A4/.5 G#4/.5 A4/.5 G#4/.5 A4/.5 E4/.5 A4/.5 D4/.5 | C#4/.5 D4/.5 A4/.5 C#4/.5 G#3/1.5 A3/.25 G#3/.25 | A3 E3/.5 A3/.5 B3/.5 C#4/1.5 | E4/1.5 D4/.25 C#4/.25 B3/2 | A4/.5 G#4/.5 A4/.5 G#4/.5 A4/.5 E4/.5 A4/.5 D4/.5 | C#4/.5 D4/.5 A4/.5 C#4/.5 G#3/1.5 A3/.25 G#3/.25 | A3 E3/.5 A3/.5 B3/.5 C#4/1.5 | A3/4',
+  lh:popLH('Fs A Fs E Fs A D A',4)},
+ {id:'pop-rain',title:'雨的印记',sub:'李闰珉 · 主题选段／三连音与连贯伴奏',key:'C大调',doPc:0,keySig:0,time:[4,4],pickup:1,bpm:56,lv:5,world:4,source:'https://www.everyonepiano.cn/Number-2.html',
+  tip:'练习重点：十六分弱起和三连音。开头先休四分之一拍；第 3 小节末三个三连音要平均分一拍。移至 C 调，左手为本站连续八分伴奏，段末作简化收尾。先分手练，旋律始终比伴奏突出。',
+  rh:'r/.25 G4/.25 C5/.25 D5/.25 | D5/.5 E5/.5 E5/2 r/.25 C5/.25 D5/.25 E5/.25 | D5/.5 G5/.5 G5/2 r/.25 G5/.25 A5/.25 B5/.25 | B5/.5 C6/.5 C6/1.5 D6/1:3 E6/1:3 D6/1:3 C6/.5 | B5/2 r/.5 C6/.5 B5/.5 G5/.5 | G5/.5 A5/.5 A5/2 r/.5 G5/.25 F5/.25 | E5/.5 G5/.5 G5/2 C5/.5 D5/.5 | E5/.5 F5/.5 F5/2 G5/.5 F5/.5 | C5/4',
+  lh:'r | '+popLH('C Em Am G F C Dm C',4)}
+];
+SONGS.push(...ADULT_ADDITIONS);
 const SONG=Object.fromEntries(SONGS.map(s=>[s.id,s]));
 const WORLDS=[
- {id:'w1',roman:'I',name:'新手村',sub:'右手五指 · 手几乎不用移动',learn:['k1','k2','k4','k5'],songs:['mary','ode','twinkle','tigers']},
+ {id:'w1',roman:'I',name:'新手村',sub:'右手旋律 · 五指位置与小幅换位',learn:['k1','k2','k4','k5'],songs:['mary','ode','twinkle','tigers']},
  {id:'w2',roman:'II',name:'双手初见',sub:'左手加入，从一个长音开始',learn:['k3','r1','r2','r3'],songs:['twinkle2','ode2','home']},
  {id:'w3',roman:'III',name:'节奏小镇',sub:'八分音符、附点、弱起和 3/4 拍',learn:['t1','t2','t3','r4'],songs:['jasmine','jingle','birthday','auld']},
  {id:'w4',roman:'IV',name:'名曲长廊',sub:'手开始移动，左右手各有任务',learn:['m1','m2','m3','m4'],songs:['farewell','greensleeves','minuet']},
- {id:'w5',roman:'V',name:'古典之巅',sub:'BOSS 关 · 三首古典名曲改编',learn:['p4','p2','p3'],songs:['canon','elise','moonlight']}
+ {id:'w5',roman:'V',name:'古典之巅',sub:'BOSS 关 · 古典主题与流行钢琴',learn:['p4','p2','p3'],songs:['canon','elise','moonlight']}
 ];
-WORLDS.forEach((w,i)=>{w.need=i===0?0:Math.ceil(WORLDS[i-1].songs.length*1.5);});
+// 固定既有解锁门槛，扩充曲库时不让已经解锁的关卡重新上锁。
+WORLDS.forEach((w,i)=>{w.need=[0,6,5,6,5][i];w.songs.push(...ADULT_ADDITIONS.filter(s=>s.world===i).map(s=>s.id));});
 
 /* ================= 儿童手指操 · 哈农 =================
    哈农（C.-L. Hanon）《钢琴技巧练习》1873 年出版，早已进入公有领域。
@@ -1888,7 +1941,7 @@ function pageMap(){
     if(!un) h+=`<div class="lockmsg">${ICON.lock}在“${WORLDS[wi-1].name}”收集 ${w.need} 颗星解锁（现在 ${worldStars(WORLDS[wi-1])} 颗）</div>`;
     h+=`<div class="learnlinks">建议先学：${w.learn.map(id=>`<button data-lesson="${id}" class="${PG.lessons[id]?'done':''}">${LESSON[id].title}</button>`).join('')}</div>`;
     h+=`<div class="songs">${w.songs.map((id,si)=>{const s=SONG[id];
-      return `<button class="song${s.boss?' boss':''}${un?'':' locked'}" data-song="${id}" ${un?'':'aria-disabled="true"'}>${s.boss?'<span class="tag">BOSS</span>':''}<span class="idx">${wi+1}-${si+1}</span><h3>${esc(s.title)}</h3><span class="meta">${esc(s.key)} · ${s.time.join('/')} 拍 · ${s.lh?'双手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}<span class="diff" aria-label="难度 ${s.lv}">${[1,2,3,4,5].map(n=>`<i class="${n<=s.lv?'on':''}"></i>`).join('')}</span></span></button>`;}).join('')}</div></section>`;
+      return `<button class="song${s.boss?' boss':''}${un?'':' locked'}" data-song="${id}" ${un?'':'aria-disabled="true"'}>${s.boss?'<span class="tag">BOSS</span>':''}<span class="idx">${wi+1}-${si+1}</span><h3>${esc(s.title)}</h3><span class="meta">${s.source?'简化选段 · ':''}${esc(s.key)} · ${s.time.join('/')} 拍 · ${s.lh?'双手':'右手'}</span><span class="foot">${starStr(PG.stars[id]||0)}<span class="diff" aria-label="难度 ${s.lv}">${[1,2,3,4,5].map(n=>`<i class="${n<=s.lv?'on':''}"></i>`).join('')}</span></span></button>`;}).join('')}</div></section>`;
   });
   const mine=customIds().filter(id=>SONG[id]&&!SONG[id].book);
   h+=`<section class="world"><div class="world-h"><span class="roman">♪</span><div><h2>${kid?esc(curProfile().name)+'的曲库':'我的曲库'}</h2><p>${kid?'老师布置了新曲子？把简谱录进来，自动配好指法':'手里有想弹的曲子的简谱？录进来，自动配指法、可以自动配左手'}</p></div>${mine.length?`<div class="wstars"><span class="stars">★</span> ${mine.reduce((a,id)=>a+(PG.stars[id]||0),0)} / ${mine.length*3}</div>`:''}</div>
