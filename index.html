@@ -673,6 +673,7 @@ const WORLDS=[
 ];
 // 固定既有解锁门槛，扩充曲库时不让已经解锁的关卡重新上锁。
 WORLDS.forEach((w,i)=>{w.need=[0,6,5,6,5][i];w.songs.push(...ADULT_ADDITIONS.filter(s=>s.world===i).map(s=>s.id));});
+const starterGraduated=stars=>['mary','ode','twinkle','tigers'].every(id=>stars[id]>0);
 
 /* ================= 儿童手指操 · 哈农 =================
    哈农（C.-L. Hanon）《钢琴技巧练习》1873 年出版，早已进入公有领域。
@@ -1407,7 +1408,7 @@ const drillBest=(id)=>Math.max(0,...Object.values((PG.drills[id]||{}).best||{}))
 const ACH=[
  {n:'第一颗星',d:'任意曲目获得 1 颗星',ok:()=>Object.values(PG.stars).some(v=>v>0)},
  {n:'三星演奏',d:'任意曲目获得 3 颗星',ok:()=>Object.values(PG.stars).some(v=>v>=3)},
- {n:'新手村毕业',d:'新手村每首曲子都有星',ok:()=>WORLDS[0].songs.every(id=>PG.stars[id])},
+ {n:'新手村毕业',d:'最初四首入门曲每首都有星',ok:()=>starterGraduated(PG.stars)},
  {n:'双手合璧',d:'“双手初见”任意曲目 2 星',ok:()=>WORLDS[1].songs.some(id=>(PG.stars[id]||0)>=2)},
  {n:'击败 Boss',d:'古典之巅任意曲目 2 星',ok:()=>WORLDS[4].songs.some(id=>(PG.stars[id]||0)>=2)},
  {n:'三日不辍',d:'连续练琴 3 天',ok:()=>streaks().best>=3},
